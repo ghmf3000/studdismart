@@ -1,5 +1,6 @@
+
 // App.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Component, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/Button";
 import { FlashcardViewer } from "./components/FlashcardViewer";
 import { generateAudio, generateStudySet } from "./services/geminiService";
@@ -18,21 +19,32 @@ import {
 } from "firebase/auth";
 
 /** ---------- Error Boundary (prevents blank screen) ---------- */
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error?: unknown }
-> {
-  constructor(props: any) {
+interface ErrorBoundaryProps {
+  children?: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: any;
+}
+
+// Fix: Explicitly use React.Component and declare the state property to fix TS2339 errors
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public override state: ErrorBoundaryState = { hasError: false, error: undefined };
+
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: undefined };
   }
-  static getDerivedStateFromError(error: unknown) {
+
+  static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
   }
-  componentDidCatch(err: unknown) {
+
+  componentDidCatch(err: any) {
     // eslint-disable-next-line no-console
     console.error("App crashed:", err);
   }
+
   render() {
     if (this.state.hasError) {
       const message =
@@ -90,8 +102,8 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
     <div className={`relative transition-all duration-300 ${!isRoot ? "ml-8 md:ml-12 mt-4 md:mt-6" : "flex flex-col items-center"}`}>
       {!isRoot && (
         <>
-          <div className="absolute -left-4 md:-left-6 -top-12 md:-top-16 bottom-5 md:bottom-7 w-px bg-slate-200 dark:bg-emerald-800" />
-          <div className="absolute -left-4 md:-left-6 top-6 md:top-8 w-4 md:w-6 h-px bg-slate-200 dark:bg-emerald-800" />
+          <div className="absolute -left-4 md:-left-6 -top-12 md:-top-16 bottom-5 md:bottom-7 w-px bg-slate-200 dark:bg-purple-800" />
+          <div className="absolute -left-4 md:-left-6 top-6 md:top-8 w-4 md:w-6 h-px bg-slate-200 dark:bg-purple-800" />
         </>
       )}
 
@@ -101,8 +113,8 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
           hasChildren ? "cursor-pointer" : "cursor-default"
         } ${
           isRoot
-            ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20 scale-105 mb-8 md:mb-14"
-            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:shadow-emerald-500/10"
+            ? "bg-purple-600 text-white border-purple-500 shadow-purple-500/20 scale-105 mb-8 md:mb-14"
+            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:shadow-purple-500/10"
         }`}
       >
         {isRoot ? (
@@ -111,7 +123,7 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
           </svg>
         ) : (
           <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
-            isOpen && hasChildren ? "bg-emerald-500 scale-125" : "bg-slate-300 dark:bg-slate-600 group-hover:bg-emerald-500"
+            isOpen && hasChildren ? "bg-purple-500 scale-125" : "bg-slate-300 dark:bg-slate-600 group-hover:bg-purple-500"
           }`} />
         )}
 
@@ -121,7 +133,7 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
 
         {hasChildren && (
           <div className={`ml-2 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}>
-             <svg className="w-3 h-3 text-slate-400 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+             <svg className="w-3 h-3 text-slate-400 group-hover:text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
              </svg>
           </div>
@@ -155,6 +167,7 @@ const AppInner: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup" | "verify">("signin");
   const [pendingEmail, setPendingEmail] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -356,11 +369,7 @@ const AppInner: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!user) {
-      setAuthMode("signin");
-      setShowAuthModal(true);
-      return;
-    }
+    // ALLOW GUESTS TO GENERATE CONTENT
     if (!input.trim() && !selectedDoc) return;
 
     setStatus(GenerationStep.PROCESSING);
@@ -454,7 +463,7 @@ const AppInner: React.FC = () => {
 
   const handleUpgrade = (tier: 'pro') => {
     if (!user) {
-        setAuthMode("signin");
+        setAuthMode("signup");
         setShowAuthModal(true);
         return;
     }
@@ -465,21 +474,29 @@ const AppInner: React.FC = () => {
     setView("home");
   };
 
+  const activeTabColor = useMemo(() => {
+    if (activeTab === 'cards') return 'bg-emerald-600 dark:bg-emerald-500';
+    if (activeTab === 'quiz') return 'bg-blue-600 dark:bg-blue-500';
+    if (activeTab === 'mindmap') return 'bg-purple-600 dark:bg-purple-500';
+    return 'bg-slate-800 dark:bg-slate-100';
+  }, [activeTab]);
+
   return (
     <div className="flex-grow flex flex-col">
       <nav className="glass sticky top-0 z-[100] border-b border-slate-200 dark:border-slate-700/50 transition-all">
         <div className="container-responsive h-16 md:h-18 flex items-center justify-between">
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-4 md:gap-8">
             <div
-              className="flex items-center gap-2 cursor-pointer group"
+              className="flex items-center gap-2 cursor-pointer group shrink-0"
               onClick={resetSession}
             >
               <div className="w-8 h-8 md:w-10 md:h-10 bg-emerald-600 dark:bg-emerald-500 rounded-none flex items-center justify-center shadow-md transition-transform group-hover:scale-105">
                 <span className="text-white font-black text-lg md:text-xl tracking-tighter">S</span>
               </div>
-              <h1 className="text-lg md:text-xl font-black tracking-tighter">StuddiSmart<span className="text-emerald-500">.</span></h1>
+              <h1 className="text-lg md:text-xl font-black tracking-tighter hidden xs:block">StuddiSmart<span className="text-emerald-500">.</span></h1>
             </div>
 
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6">
               <button 
                 onClick={() => setView("home")}
@@ -502,7 +519,7 @@ const AppInner: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <button
               onClick={toggleDarkMode}
               className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-none bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-300 dark:hover:bg-slate-700 border border-slate-300/50 dark:border-slate-700"
@@ -540,19 +557,74 @@ const AppInner: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <Button
-                variant="primary"
-                className="h-8 md:h-10 px-5 md:px-8 rounded-none shadow-sm"
-                onClick={() => {
-                  setAuthMode("signin");
-                  setShowAuthModal(true);
-                }}
-              >
-                Unlock Access
-              </Button>
+              <div className="group relative">
+                <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-none cursor-pointer hover:shadow-md transition-all">
+                  <div className="w-6 h-6 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-none flex items-center justify-center text-xs font-black uppercase">
+                    G
+                  </div>
+                  <span className="hidden sm:inline text-xs font-black tracking-tight">
+                    Guest Scholar
+                  </span>
+                </div>
+                <div className="absolute top-full right-0 mt-2 w-48 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-none shadow-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-1 group-hover:translate-y-0 z-[110]">
+                  <button
+                    onClick={() => { setAuthMode("signin"); setShowAuthModal(true); }}
+                    className="w-full text-left px-5 py-2 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700"
+                    type="button"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => { setAuthMode("signup"); setShowAuthModal(true); }}
+                    className="w-full text-left px-5 py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/10"
+                    type="button"
+                  >
+                    Register Identity
+                  </button>
+                </div>
+              </div>
             )}
+
+            {/* Mobile Menu Toggle */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden w-8 h-8 flex flex-col items-center justify-center gap-1 bg-slate-200 dark:bg-slate-800 border border-slate-300/50 dark:border-slate-700 active:scale-90 transition-transform"
+            >
+              <div className={`w-4 h-0.5 bg-slate-700 dark:bg-slate-300 transition-all ${isMobileMenuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
+              <div className={`w-4 h-0.5 bg-slate-700 dark:bg-slate-300 transition-opacity ${isMobileMenuOpen ? 'opacity-0' : ''}`} />
+              <div className={`w-4 h-0.5 bg-slate-700 dark:bg-slate-300 transition-all ${isMobileMenuOpen ? '-rotate-45 -translate-y-1.5' : ''}`} />
+            </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Drawer */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden fixed inset-x-0 top-16 bottom-0 z-[90] bg-slate-100/95 dark:bg-slate-900/95 backdrop-blur-md animate-in slide-in-from-top duration-300">
+            <div className="flex flex-col p-6 space-y-4">
+              {[
+                { label: 'Home', view: 'home' as const },
+                { label: 'About Us', view: 'about' as const },
+                { label: 'Pricing', view: 'pricing' as const }
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => { setView(item.view); setIsMobileMenuOpen(false); }}
+                  className={`w-full py-4 text-center text-lg font-black uppercase tracking-[0.2em] border-b border-slate-200 dark:border-slate-800 ${view === item.view ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-400'}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+              {!user && (
+                <Button 
+                  className="w-full py-4 rounded-none mt-4" 
+                  onClick={() => { setAuthMode('signin'); setShowAuthModal(true); setIsMobileMenuOpen(false); }}
+                >
+                  Sign In to Sync
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </nav>
 
       <main className="container-responsive flex-grow py-10 md:py-16">
@@ -632,7 +704,7 @@ const AppInner: React.FC = () => {
               <div className="flex bg-slate-50 dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200/50 dark:border-slate-700/50 w-full lg:max-w-lg relative h-12 md:h-14">
                 <div className="absolute inset-1 pointer-events-none">
                   <div 
-                    className="h-full bg-slate-800 dark:bg-slate-100 rounded-none transition-all duration-300 ease-out shadow-sm"
+                    className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out shadow-sm`}
                     style={{
                       width: '33.33%',
                       transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : '200%'})`
@@ -675,7 +747,7 @@ const AppInner: React.FC = () => {
                       <div className="relative inline-block scale-110 mb-4">
                         <svg className="w-24 h-24 transform -rotate-90 mx-auto">
                           <circle cx="50%" cy="50%" r="45%" fill="none" stroke="currentColor" strokeWidth="4" className="text-slate-200 dark:text-slate-700" />
-                          <circle cx="50%" cy="50%" r="45%" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray="151" strokeDashoffset={151 - (151 * quizResults.percentage) / 100} className="text-emerald-500 transition-all duration-1000 ease-out" />
+                          <circle cx="50%" cy="50%" r="45%" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray="151" strokeDashoffset={151 - (151 * quizResults.percentage) / 100} className="text-blue-500 transition-all duration-1000 ease-out" />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                           <span className="text-2xl font-black text-slate-900 dark:text-slate-100">{quizResults.percentage}%</span>
@@ -686,10 +758,10 @@ const AppInner: React.FC = () => {
                         <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-slate-100">Synthesis Verified</h3>
                         <p className="text-slate-500 font-bold text-xs">Identified {quizResults.correctCount} / {quiz.length} patterns correctly.</p>
                       </div>
-                      <Button className="w-full h-12 text-xs rounded-none" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Reset Checkpoint</Button>
+                      <Button className="w-full h-12 text-xs rounded-none bg-blue-600 hover:bg-blue-700 text-white border-none" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Reset Checkpoint</Button>
                     </div>
                   ) : (
-                    <div className="bg-slate-50 dark:bg-slate-800 p-6 md:p-8 rounded-none border border-slate-200 dark:border-slate-700 shadow-xl space-y-8 border-t-4 border-t-emerald-500">
+                    <div className="bg-slate-50 dark:bg-slate-800 p-6 md:p-8 rounded-none border border-slate-200 dark:border-slate-700 shadow-xl space-y-8 border-t-4 border-t-blue-500">
                       <div className="text-center space-y-4">
                         <div className="inline-block px-4 py-1 bg-slate-200 dark:bg-slate-700 rounded-none text-[9px] font-black uppercase tracking-widest text-slate-500">
                           Checkpoint {quizIndex + 1} of {quiz.length}
@@ -705,11 +777,11 @@ const AppInner: React.FC = () => {
                             key={i}
                             onClick={() => setQuizAnswers((p) => ({ ...p, [quiz[quizIndex].id]: opt }))}
                             className={`group p-4 text-left rounded-none border font-bold transition-all text-sm ${
-                              quizAnswers[quiz[quizIndex].id] === opt ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-slate-50/50 dark:bg-slate-900/30"
+                              quizAnswers[quiz[quizIndex].id] === opt ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-slate-50/50 dark:bg-slate-900/30"
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                               <div className={`w-6 h-6 rounded-none flex items-center justify-center border font-black transition-colors shrink-0 text-[10px] ${quizAnswers[quiz[quizIndex].id] === opt ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' : 'border-slate-300 dark:border-slate-700 text-slate-400'}`}>
+                               <div className={`w-6 h-6 rounded-none flex items-center justify-center border font-black transition-colors shrink-0 text-[10px] ${quizAnswers[quiz[quizIndex].id] === opt ? 'bg-blue-500 border-blue-500 text-white shadow-sm' : 'border-slate-300 dark:border-slate-700 text-slate-400'}`}>
                                  {String.fromCharCode(65 + i)}
                                </div>
                                <span className="leading-tight text-xs text-slate-800 dark:text-slate-200">{opt}</span>
@@ -720,9 +792,9 @@ const AppInner: React.FC = () => {
                       <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-200 dark:border-slate-700">
                         <Button variant="secondary" className="flex-1 h-12 rounded-none text-xs bg-slate-100" onClick={() => setQuizIndex((p) => Math.max(0, p - 1))} disabled={quizIndex === 0}>Prev</Button>
                         {quizIndex === quiz.length - 1 ? (
-                          <Button className="flex-[2] h-12 text-xs rounded-none shadow-sm" onClick={() => setIsQuizSubmitted(true)} disabled={!quizResults.isAllAnswered}>Submit Analysis</Button>
+                          <Button className="flex-[2] h-12 text-xs rounded-none shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-none" onClick={() => setIsQuizSubmitted(true)} disabled={!quizResults.isAllAnswered}>Submit Analysis</Button>
                         ) : (
-                          <Button className="flex-[2] h-12 text-xs rounded-none" onClick={() => setQuizIndex((p) => Math.min(quiz.length - 1, p + 1))}>Next Segment</Button>
+                          <Button className="flex-[2] h-12 text-xs rounded-none bg-blue-600 hover:bg-blue-700 text-white border-none" onClick={() => setQuizIndex((p) => Math.min(quiz.length - 1, p + 1))}>Next Segment</Button>
                         )}
                       </div>
                     </div>
@@ -731,7 +803,7 @@ const AppInner: React.FC = () => {
               )}
 
               {activeTab === "mindmap" && (
-                <div className="bg-slate-50 dark:bg-slate-800 p-8 md:p-12 rounded-none border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-xl relative min-h-[350px] animate-in fade-in duration-500">
+                <div className="bg-slate-50 dark:bg-slate-800 p-8 md:p-12 rounded-none border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-xl relative min-h-[350px] animate-in fade-in duration-500 border-t-4 border-t-purple-500">
                   <div className="min-w-max">
                     {mindmap ? <MindmapNodeView node={mindmap} /> : <div className="text-center py-20 font-black opacity-10 text-xl uppercase tracking-[0.2em]">Graph Unavailable</div>}
                   </div>
@@ -798,13 +870,13 @@ const AppInner: React.FC = () => {
                     <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Flashcards</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Quick and effective memorization modules.</p>
                   </div>
-                  <div className="p-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 group hover:border-emerald-500/40 transition-colors">
-                    <div className="text-emerald-500 text-2xl font-black group-hover:scale-110 transition-transform inline-block">02</div>
+                  <div className="p-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 group hover:border-blue-500/40 transition-colors">
+                    <div className="text-blue-500 text-2xl font-black group-hover:scale-110 transition-transform inline-block">02</div>
                     <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Quizzes</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Test understanding and track synthesis progress.</p>
                   </div>
-                  <div className="p-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 group hover:border-emerald-500/40 transition-colors">
-                    <div className="text-emerald-500 text-2xl font-black group-hover:scale-110 transition-transform inline-block">03</div>
+                  <div className="p-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 group hover:border-purple-500/40 transition-colors">
+                    <div className="text-purple-500 text-2xl font-black group-hover:scale-110 transition-transform inline-block">03</div>
                     <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Mindmaps</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Visualize concepts and connect complex ideas.</p>
                   </div>
@@ -902,7 +974,7 @@ const AppInner: React.FC = () => {
               <>
                 <div className="text-center space-y-2">
                   <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">{authMode === "signin" ? "Initialize Secure Access" : "Join StuddiSmart"}</h3>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">Access your personal synthesis terminal.</p>
+                  <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">{authMode === "signin" ? "Welcome back, Scholar." : "Start your synthesis journey."}</p>
                 </div>
                 <div className="space-y-4">
                   {authMode === "signup" && (

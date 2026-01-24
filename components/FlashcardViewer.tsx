@@ -213,7 +213,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
           <div className="card-front bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col p-0 overflow-hidden rounded-none border-t-4 border-t-emerald-500">
             <div className="flex-1 w-full flex flex-col p-8 md:p-12 space-y-4 overflow-y-auto">
               {card?.imagePrompt && (
-                <div className="w-full h-20 md:h-28 flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden shadow-inner border border-slate-100 dark:border-slate-700 shrink-0 rounded-none relative">
+                <div className="w-full h-20 md:h-28 flex items-center justify-center bg-slate-100 dark:bg-slate-900 overflow-hidden shadow-inner border border-slate-200 dark:border-slate-700 shrink-0 rounded-none relative">
                   {isImageLoading && (
                     <div className="absolute inset-0 shimmer-bg animate-shimmer flex items-center justify-center">
                        <svg className="w-6 h-6 text-slate-300 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -329,14 +329,14 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
             </div>
 
             {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 bg-slate-50 dark:bg-slate-900">
               {!tutorData ? (
                 <TutorSkeleton />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* SECTION: SIMPLE EXPLANATION */}
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-emerald-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Simple Explanation</span>
@@ -347,14 +347,14 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                         isGenerating={generatingAudioId === 'sum'}
                       />
                     </div>
-                    <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    <p className="text-sm md:text-base text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                       {tutorData.simpleExplanation}
                     </p>
                   </div>
 
                   {/* SECTION: REAL WORLD EXAMPLE */}
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-orange-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Real-World Example</span>
@@ -366,7 +366,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                       />
                     </div>
                     <div className="bg-orange-50/20 dark:bg-orange-900/10 p-4 rounded-none border border-orange-100/50 dark:border-orange-900/20">
-                      <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-bold italic">
+                      <p className="text-sm md:text-base text-slate-700 dark:text-slate-300 leading-relaxed font-bold italic">
                         "{tutorData.realWorldExample}"
                       </p>
                     </div>
@@ -374,7 +374,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
 
                   {/* SECTION: CORE TAKEAWAYS */}
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-emerald-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Core Takeaways</span>
@@ -382,7 +382,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                     </div>
                     <ul className="space-y-3">
                       {tutorData.keyCommands.map((item, i) => (
-                        <li key={i} className="flex gap-3 text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-700/50 p-3 rounded-none border border-slate-100 dark:border-slate-600">
+                        <li key={i} className="flex gap-3 text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 p-3 rounded-none border border-slate-200 dark:border-slate-700">
                           <span className="text-emerald-500 font-black">#{i+1}</span>
                           {item}
                         </li>
@@ -392,7 +392,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
 
                   {/* SECTION: COMMON MISTAKES */}
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-red-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Common Mistakes</span>
@@ -410,7 +410,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
 
                   {/* SECTION: QUICK CHECK */}
                   <div className="md:col-span-2 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-purple-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Quick Check ({tutorData.quickCheck.length} Qs)</span>
@@ -418,10 +418,10 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                       {tutorData.quickCheck.map((item, i) => (
-                        <div key={i} className="bg-slate-50 dark:bg-slate-700/30 p-4 border border-slate-100 dark:border-slate-600 rounded-none space-y-2 group hover:border-emerald-500/30 transition-colors duration-300">
+                        <div key={i} className="bg-white dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700 rounded-none space-y-2 group hover:border-emerald-500/30 transition-colors duration-300">
                           <p className="text-xs font-black uppercase text-slate-400">Question {i+1}</p>
                           <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.question}</p>
-                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                              <p className="text-[10px] font-black uppercase text-emerald-500">Answer</p>
                              <p className="text-sm text-slate-600 dark:text-slate-300">{item.answer}</p>
                           </div>
@@ -434,7 +434,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 md:px-8 py-5 border-t border-slate-100 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-700/80 backdrop-blur-md shrink-0 flex justify-end">
+            <div className="px-6 md:px-8 py-5 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 backdrop-blur-md shrink-0 flex justify-end">
                <Button className="rounded-none h-12 md:h-14 px-10" disabled={isFetchingTutor} onClick={() => { stopAudio(); setShowTutor(false); }}>
                  {isFetchingTutor ? 'Processing...' : 'Back to Study'}
                </Button>

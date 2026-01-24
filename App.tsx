@@ -40,11 +40,11 @@ class ErrorBoundary extends React.Component<
           ? this.state.error.message
           : String(this.state.error || "Unknown error");
       return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-6 flex items-center justify-center">
-          <div className="max-w-2xl w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-none p-8 md:p-14 shadow-2xl">
+        <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-6 flex items-center justify-center">
+          <div className="max-w-2xl w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-none p-8 md:p-14 shadow-2xl">
             <h2 className="text-3xl font-black tracking-tight mb-4 text-slate-900 dark:text-white">Terminal Error</h2>
             <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">The synthesis session encountered an unexpected hardware/software conflict.</p>
-            <div className="p-5 rounded-none bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono overflow-auto mb-8 max-h-40 text-slate-600 dark:text-slate-400">
+            <div className="p-5 rounded-none bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono overflow-auto mb-8 max-h-40 text-slate-600 dark:text-slate-400">
               {message}
             </div>
             <Button onClick={() => window.location.reload()} className="w-full h-14 rounded-none">Re-Initialize App</Button>
@@ -69,7 +69,7 @@ const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean }> = ({
     className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] md:text-xs font-black uppercase tracking-widest transition-all active:scale-95 ${
       isPlaying
         ? "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-        : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-600 shadow-sm"
+        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-600 shadow-sm"
     }`}
     type="button"
   >
@@ -90,8 +90,8 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
     <div className={`relative transition-all duration-300 ${!isRoot ? "ml-8 md:ml-12 mt-4 md:mt-6" : "flex flex-col items-center"}`}>
       {!isRoot && (
         <>
-          <div className="absolute -left-4 md:-left-6 -top-12 md:-top-16 bottom-5 md:bottom-7 w-px bg-emerald-100 dark:bg-emerald-800" />
-          <div className="absolute -left-4 md:-left-6 top-6 md:top-8 w-4 md:w-6 h-px bg-emerald-100 dark:bg-emerald-800" />
+          <div className="absolute -left-4 md:-left-6 -top-12 md:-top-16 bottom-5 md:bottom-7 w-px bg-slate-200 dark:bg-emerald-800" />
+          <div className="absolute -left-4 md:-left-6 top-6 md:top-8 w-4 md:w-6 h-px bg-slate-200 dark:bg-emerald-800" />
         </>
       )}
 
@@ -102,7 +102,7 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
         } ${
           isRoot
             ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20 scale-105 mb-8 md:mb-14"
-            : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:shadow-emerald-500/10"
+            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:shadow-emerald-500/10"
         }`}
       >
         {isRoot ? (
@@ -467,7 +467,7 @@ const AppInner: React.FC = () => {
 
   return (
     <div className="flex-grow flex flex-col">
-      <nav className="glass sticky top-0 z-[100] border-b border-slate-200/50 dark:border-slate-700/50 transition-all">
+      <nav className="glass sticky top-0 z-[100] border-b border-slate-200 dark:border-slate-700/50 transition-all">
         <div className="container-responsive h-16 md:h-18 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <div
@@ -505,7 +505,7 @@ const AppInner: React.FC = () => {
           <div className="flex items-center gap-3 md:gap-4">
             <button
               onClick={toggleDarkMode}
-              className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-none bg-slate-100 dark:bg-slate-800 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent dark:border-slate-700"
+              className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-none bg-slate-200 dark:bg-slate-800 transition-colors hover:bg-slate-300 dark:hover:bg-slate-700 border border-slate-300/50 dark:border-slate-700"
               type="button"
             >
               {isDarkMode ? "🌙" : "☀️"}
@@ -513,7 +513,7 @@ const AppInner: React.FC = () => {
 
             {user ? (
               <div className="group relative">
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-none cursor-pointer hover:shadow-md transition-all">
+                <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-none cursor-pointer hover:shadow-md transition-all">
                   <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-none flex items-center justify-center text-xs font-black uppercase">
                     {user.name?.[0] || "S"}
                   </div>
@@ -522,10 +522,10 @@ const AppInner: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-none shadow-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-1 group-hover:translate-y-0 z-[110]">
+                <div className="absolute top-full right-0 mt-2 w-48 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-none shadow-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 translate-y-1 group-hover:translate-y-0 z-[110]">
                   <button
                     onClick={() => setView("profile")}
-                    className="w-full text-left px-5 py-2 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700"
+                    className="w-full text-left px-5 py-2 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700"
                     type="button"
                   >
                     Identity Settings
@@ -570,18 +570,26 @@ const AppInner: React.FC = () => {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-none p-2 md:p-3 shadow-xl border border-slate-200 dark:border-slate-700 relative group">
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-none p-2 md:p-3 shadow-xl border border-slate-200 dark:border-slate-700 relative group overflow-hidden">
               {status === GenerationStep.PROCESSING && (
-                <div className="absolute inset-0 bg-white/95 dark:bg-slate-800/95 z-50 flex flex-col items-center justify-center p-8 backdrop-blur-sm rounded-none">
-                  <div className="w-16 h-16 md:w-20 md:h-20 border-[6px] border-emerald-100 dark:border-emerald-900 border-t-emerald-500 rounded-full animate-spin mb-8 shadow-md" />
-                  <div className="text-center space-y-3">
-                    <p className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white">{STUDY_TIPS[tipIndex]}</p>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Synthesizing source logic</p>
+                <div className="absolute inset-0 bg-slate-50/95 dark:bg-slate-900/95 z-50 flex flex-col items-center justify-center p-8 backdrop-blur-sm rounded-none animate-in fade-in duration-300">
+                  <div className="relative mb-12">
+                    <div className="w-24 h-24 md:w-32 md:h-32 border-[6px] border-emerald-100 dark:border-emerald-900/50 border-t-emerald-500 rounded-full animate-spin shadow-xl" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                       <svg className="w-8 h-8 text-emerald-500 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    </div>
+                  </div>
+                  <div className="text-center space-y-4 max-w-sm">
+                    <p className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white animate-in slide-in-from-bottom-2 duration-700">{STUDY_TIPS[tipIndex]}</p>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                       <div className="h-full bg-emerald-500 animate-shimmer transition-all duration-1000" style={{ width: `${((tipIndex + 1) / STUDY_TIPS.length) * 100}%` }} />
+                    </div>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px] animate-pulse">Running advanced AI logic engine</p>
                   </div>
                 </div>
               )}
 
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-none p-6 md:p-10 space-y-8">
+              <div className="bg-slate-100/50 dark:bg-slate-900 rounded-none p-6 md:p-10 space-y-8">
                 <textarea
                   className="w-full h-40 md:h-60 bg-transparent outline-none resize-none text-lg md:text-2xl font-bold placeholder:text-slate-300 dark:placeholder:text-slate-700 leading-relaxed text-slate-900 dark:text-slate-100"
                   placeholder="Paste your source material here..."
@@ -590,7 +598,7 @@ const AppInner: React.FC = () => {
                 />
 
                 {selectedDoc && (
-                  <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-none border border-emerald-500/10 shadow-sm animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-4 rounded-none border border-emerald-500/10 shadow-sm animate-in slide-in-from-bottom-2">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-none flex items-center justify-center text-[10px] font-black">
                         {selectedDoc.mimeType.includes("pdf") ? "PDF" : "IMG"}
@@ -605,7 +613,7 @@ const AppInner: React.FC = () => {
                 )}
 
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 pt-8 border-t border-slate-200/50 dark:border-slate-700/50">
-                  <Button variant="secondary" className="h-14 md:h-16 px-8 rounded-none" onClick={() => fileInputRef.current?.click()}>
+                  <Button variant="secondary" className="h-14 md:h-16 px-8 rounded-none bg-slate-50 hover:bg-white" onClick={() => fileInputRef.current?.click()}>
                     {selectedDoc ? "Replace" : "Add Source"}
                   </Button>
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} />
@@ -621,7 +629,7 @@ const AppInner: React.FC = () => {
         {view === "viewer" && (
           <div className="max-w-5xl mx-auto space-y-8 animate-content">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-              <div className="flex bg-white dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200/50 dark:border-slate-700/50 w-full lg:max-w-lg relative h-12 md:h-14">
+              <div className="flex bg-slate-50 dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200/50 dark:border-slate-700/50 w-full lg:max-w-lg relative h-12 md:h-14">
                 <div className="absolute inset-1 pointer-events-none">
                   <div 
                     className="h-full bg-slate-800 dark:bg-slate-100 rounded-none transition-all duration-300 ease-out shadow-sm"
@@ -636,7 +644,7 @@ const AppInner: React.FC = () => {
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={`flex-1 text-[10px] font-black rounded-none transition-all relative z-10 uppercase tracking-widest ${
-                      activeTab === tab ? "text-white dark:text-slate-900" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      activeTab === tab ? "text-slate-50 dark:text-slate-900" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                     }`}
                     type="button"
                   >
@@ -644,12 +652,12 @@ const AppInner: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <Button onClick={resetSession} variant="secondary" className="h-12 md:h-14 px-8 rounded-none text-xs">Reset Workspace</Button>
+              <Button onClick={resetSession} variant="secondary" className="h-12 md:h-14 px-8 rounded-none text-xs bg-slate-50">Reset Workspace</Button>
             </div>
 
             <div className="min-h-[450px]">
               {activeTab === "cards" && (
-                <div className="space-y-10">
+                <div className="space-y-10 animate-in fade-in duration-500">
                   <FlashcardViewer 
                     card={cards[currentIndex]} 
                     index={currentIndex} 
@@ -661,12 +669,12 @@ const AppInner: React.FC = () => {
               )}
 
               {activeTab === "quiz" && (
-                <div className="max-w-xl mx-auto">
+                <div className="max-w-xl mx-auto animate-in fade-in duration-500">
                   {isQuizSubmitted ? (
-                    <div className="bg-white dark:bg-slate-800 p-10 md:p-14 rounded-none border border-slate-200 dark:border-slate-700 shadow-xl text-center space-y-8">
+                    <div className="bg-slate-50 dark:bg-slate-800 p-10 md:p-14 rounded-none border border-slate-200 dark:border-slate-700 shadow-xl text-center space-y-8">
                       <div className="relative inline-block scale-110 mb-4">
                         <svg className="w-24 h-24 transform -rotate-90 mx-auto">
-                          <circle cx="50%" cy="50%" r="45%" fill="none" stroke="currentColor" strokeWidth="4" className="text-slate-100 dark:text-slate-700" />
+                          <circle cx="50%" cy="50%" r="45%" fill="none" stroke="currentColor" strokeWidth="4" className="text-slate-200 dark:text-slate-700" />
                           <circle cx="50%" cy="50%" r="45%" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray="151" strokeDashoffset={151 - (151 * quizResults.percentage) / 100} className="text-emerald-500 transition-all duration-1000 ease-out" />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -681,9 +689,9 @@ const AppInner: React.FC = () => {
                       <Button className="w-full h-12 text-xs rounded-none" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Reset Checkpoint</Button>
                     </div>
                   ) : (
-                    <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-none border border-slate-200 dark:border-slate-700 shadow-xl space-y-8 border-t-4 border-t-emerald-500">
+                    <div className="bg-slate-50 dark:bg-slate-800 p-6 md:p-8 rounded-none border border-slate-200 dark:border-slate-700 shadow-xl space-y-8 border-t-4 border-t-emerald-500">
                       <div className="text-center space-y-4">
-                        <div className="inline-block px-4 py-1 bg-slate-100 dark:bg-slate-700 rounded-none text-[9px] font-black uppercase tracking-widest text-slate-500">
+                        <div className="inline-block px-4 py-1 bg-slate-200 dark:bg-slate-700 rounded-none text-[9px] font-black uppercase tracking-widest text-slate-500">
                           Checkpoint {quizIndex + 1} of {quiz.length}
                         </div>
                         <h3 className="text-lg md:text-xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100">{quiz[quizIndex]?.question}</h3>
@@ -697,11 +705,11 @@ const AppInner: React.FC = () => {
                             key={i}
                             onClick={() => setQuizAnswers((p) => ({ ...p, [quiz[quizIndex].id]: opt }))}
                             className={`group p-4 text-left rounded-none border font-bold transition-all text-sm ${
-                              quizAnswers[quiz[quizIndex].id] === opt ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400" : "border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600"
+                              quizAnswers[quiz[quizIndex].id] === opt ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400" : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-slate-50/50 dark:bg-slate-900/30"
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                               <div className={`w-6 h-6 rounded-none flex items-center justify-center border font-black transition-colors shrink-0 text-[10px] ${quizAnswers[quiz[quizIndex].id] === opt ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' : 'border-slate-200 dark:border-slate-700 text-slate-400'}`}>
+                               <div className={`w-6 h-6 rounded-none flex items-center justify-center border font-black transition-colors shrink-0 text-[10px] ${quizAnswers[quiz[quizIndex].id] === opt ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' : 'border-slate-300 dark:border-slate-700 text-slate-400'}`}>
                                  {String.fromCharCode(65 + i)}
                                </div>
                                <span className="leading-tight text-xs text-slate-800 dark:text-slate-200">{opt}</span>
@@ -709,8 +717,8 @@ const AppInner: React.FC = () => {
                           </button>
                         ))}
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-100 dark:border-slate-700">
-                        <Button variant="secondary" className="flex-1 h-12 rounded-none text-xs" onClick={() => setQuizIndex((p) => Math.max(0, p - 1))} disabled={quizIndex === 0}>Prev</Button>
+                      <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-200 dark:border-slate-700">
+                        <Button variant="secondary" className="flex-1 h-12 rounded-none text-xs bg-slate-100" onClick={() => setQuizIndex((p) => Math.max(0, p - 1))} disabled={quizIndex === 0}>Prev</Button>
                         {quizIndex === quiz.length - 1 ? (
                           <Button className="flex-[2] h-12 text-xs rounded-none shadow-sm" onClick={() => setIsQuizSubmitted(true)} disabled={!quizResults.isAllAnswered}>Submit Analysis</Button>
                         ) : (
@@ -723,7 +731,7 @@ const AppInner: React.FC = () => {
               )}
 
               {activeTab === "mindmap" && (
-                <div className="bg-white dark:bg-slate-800 p-8 md:p-12 rounded-none border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-xl relative min-h-[350px]">
+                <div className="bg-slate-50 dark:bg-slate-800 p-8 md:p-12 rounded-none border border-slate-200 dark:border-slate-700 overflow-x-auto shadow-xl relative min-h-[350px] animate-in fade-in duration-500">
                   <div className="min-w-max">
                     {mindmap ? <MindmapNodeView node={mindmap} /> : <div className="text-center py-20 font-black opacity-10 text-xl uppercase tracking-[0.2em]">Graph Unavailable</div>}
                   </div>
@@ -742,7 +750,7 @@ const AppInner: React.FC = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* FREE */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 flex flex-col space-y-8 rounded-none hover:shadow-xl transition-shadow">
+              <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 flex flex-col space-y-8 rounded-none hover:shadow-xl transition-shadow">
                 <div className="space-y-2">
                   <h3 className="text-xl font-black text-slate-900 dark:text-white">Free Scholar</h3>
                   <div className="text-4xl font-black text-slate-900 dark:text-white">$0<span className="text-sm text-slate-400 font-medium"> / mo</span></div>
@@ -753,11 +761,11 @@ const AppInner: React.FC = () => {
                   <li className="flex items-center gap-3 opacity-30"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg> Document Parsing</li>
                   <li className="flex items-center gap-3 opacity-30"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/></svg> AI Tutor Insights</li>
                 </ul>
-                <Button variant="secondary" className="w-full h-14 rounded-none" onClick={() => setView("home")}>Current Plan</Button>
+                <Button variant="secondary" className="w-full h-14 rounded-none bg-slate-100" onClick={() => setView("home")}>Current Plan</Button>
               </div>
 
               {/* PRO */}
-              <div className="bg-white dark:bg-slate-800 border-2 border-emerald-500 p-8 flex flex-col space-y-8 rounded-none relative shadow-2xl shadow-emerald-500/10">
+              <div className="bg-slate-50 dark:bg-slate-800 border-2 border-emerald-500 p-8 flex flex-col space-y-8 rounded-none relative shadow-2xl shadow-emerald-500/10">
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-none">Recommended</div>
                 <div className="space-y-2">
                   <h3 className="text-xl font-black text-slate-900 dark:text-white">StuddiSmart Pro</h3>
@@ -777,7 +785,7 @@ const AppInner: React.FC = () => {
 
         {view === "about" && (
           <div className="max-w-3xl mx-auto py-10 animate-content space-y-12">
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 md:p-14 space-y-10 rounded-none shadow-xl border-t-4 border-t-emerald-500">
+            <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 md:p-14 space-y-10 rounded-none shadow-xl border-t-4 border-t-emerald-500">
               <section className="space-y-4">
                 <h2 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white">About StuddiSmart</h2>
                 <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium">
@@ -785,18 +793,18 @@ const AppInner: React.FC = () => {
                   With StuddiSmart, you can upload your PDFs, notes, or images and instantly transform them into:
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
-                  <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 space-y-2">
-                    <div className="text-emerald-500 text-2xl font-black">01</div>
+                  <div className="p-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 group hover:border-emerald-500/40 transition-colors">
+                    <div className="text-emerald-500 text-2xl font-black group-hover:scale-110 transition-transform inline-block">01</div>
                     <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Flashcards</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Quick and effective memorization modules.</p>
                   </div>
-                  <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 space-y-2">
-                    <div className="text-emerald-500 text-2xl font-black">02</div>
+                  <div className="p-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 group hover:border-emerald-500/40 transition-colors">
+                    <div className="text-emerald-500 text-2xl font-black group-hover:scale-110 transition-transform inline-block">02</div>
                     <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Quizzes</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Test understanding and track synthesis progress.</p>
                   </div>
-                  <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 space-y-2">
-                    <div className="text-emerald-500 text-2xl font-black">03</div>
+                  <div className="p-5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 group hover:border-emerald-500/40 transition-colors">
+                    <div className="text-emerald-500 text-2xl font-black group-hover:scale-110 transition-transform inline-block">03</div>
                     <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Mindmaps</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Visualize concepts and connect complex ideas.</p>
                   </div>
@@ -806,7 +814,7 @@ const AppInner: React.FC = () => {
                 </p>
               </section>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-8 border-t border-slate-100 dark:border-slate-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-8 border-t border-slate-200 dark:border-slate-700">
                 <section className="space-y-4">
                   <h3 className="text-xl font-black uppercase tracking-widest text-emerald-500">Our Mission</h3>
                   <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm font-bold">
@@ -823,25 +831,25 @@ const AppInner: React.FC = () => {
                 </section>
               </div>
 
-              <section className="space-y-6 pt-8 border-t border-slate-100 dark:border-slate-700">
+              <section className="space-y-6 pt-8 border-t border-slate-200 dark:border-slate-700">
                 <h3 className="text-xl font-black uppercase tracking-widest text-emerald-500">Our Approach</h3>
                 <div className="space-y-4">
                   <div className="flex gap-4">
-                    <div className="shrink-0 w-8 h-8 bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black">A</div>
+                    <div className="shrink-0 w-8 h-8 bg-slate-200 dark:bg-slate-900 flex items-center justify-center font-black">A</div>
                     <p className="text-sm font-bold text-slate-600 dark:text-slate-300">AI-powered insights that adapt to your content in real-time.</p>
                   </div>
                   <div className="flex gap-4">
-                    <div className="shrink-0 w-8 h-8 bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black">B</div>
+                    <div className="shrink-0 w-8 h-8 bg-slate-200 dark:bg-slate-900 flex items-center justify-center font-black">B</div>
                     <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Clean, distraction-free design that keeps you focused on results.</p>
                   </div>
                   <div className="flex gap-4">
-                    <div className="shrink-0 w-8 h-8 bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black">C</div>
+                    <div className="shrink-0 w-8 h-8 bg-slate-200 dark:bg-slate-900 flex items-center justify-center font-black">C</div>
                     <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Privacy-minded technology built with modern security practices.</p>
                   </div>
                 </div>
               </section>
 
-              <div className="pt-10 flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-50 dark:bg-slate-900 p-8 border border-slate-100 dark:border-slate-700">
+              <div className="pt-10 flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-100 dark:bg-slate-900 p-8 border border-slate-200 dark:border-slate-700">
                 <div className="space-y-1">
                   <h4 className="font-black text-sm uppercase tracking-[0.2em] text-slate-400">Questions or feedback?</h4>
                   <p className="font-black text-emerald-500">support@studdismart.com</p>
@@ -854,7 +862,7 @@ const AppInner: React.FC = () => {
 
         {view === "profile" && user && (
           <div className="max-w-xl mx-auto animate-content">
-            <div className="bg-white dark:bg-slate-800 rounded-none p-10 md:p-14 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 border-t-4 border-t-emerald-500">
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-none p-10 md:p-14 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 border-t-4 border-t-emerald-500">
               <div className="flex flex-col items-center space-y-6">
                 <div className="w-20 h-20 bg-emerald-600 dark:bg-emerald-500 text-white rounded-none flex items-center justify-center text-3xl font-black shadow-lg">
                   {user.name?.[0]}
@@ -867,11 +875,11 @@ const AppInner: React.FC = () => {
               <div className="space-y-6">
                 <div>
                   <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4 mb-2 block">Display Identity</label>
-                  <input type="text" value={profileNameInput} onChange={(e) => setProfileNameInput(e.target.value)} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all text-base text-slate-800 dark:text-slate-100" />
+                  <input type="text" value={profileNameInput} onChange={(e) => setProfileNameInput(e.target.value)} className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all text-base text-slate-800 dark:text-slate-100" />
                 </div>
                 <div className="pt-6 flex flex-col md:flex-row gap-3">
                   <Button className="flex-1 h-12 text-xs rounded-none" onClick={handleUpdateProfile} isLoading={isUpdatingProfile}>Apply Update</Button>
-                  <Button variant="secondary" className="flex-1 h-12 text-xs rounded-none" onClick={() => setView("home")}>Return</Button>
+                  <Button variant="secondary" className="flex-1 h-12 text-xs rounded-none bg-slate-100" onClick={() => setView("home")}>Return</Button>
                 </div>
               </div>
             </div>
@@ -881,8 +889,8 @@ const AppInner: React.FC = () => {
 
       {showAuthModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-none p-10 md:p-10 space-y-8 border border-slate-200 dark:border-slate-700 shadow-2xl animate-in zoom-in-95 duration-400 relative flex flex-col overflow-y-auto max-h-[90vh]">
-            <button onClick={() => setShowAuthModal(false)} className="absolute top-8 right-8 w-8 h-8 flex items-center justify-center rounded-none bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-red-500 transition-all active:scale-90">✕</button>
+          <div className="bg-slate-50 dark:bg-slate-800 w-full max-w-md rounded-none p-10 md:p-10 space-y-8 border border-slate-200 dark:border-slate-700 shadow-2xl animate-in zoom-in-95 duration-400 relative flex flex-col overflow-y-auto max-h-[90vh]">
+            <button onClick={() => setShowAuthModal(false)} className="absolute top-8 right-8 w-8 h-8 flex items-center justify-center rounded-none bg-slate-200 dark:bg-slate-700 text-slate-400 hover:text-red-500 transition-all active:scale-90">✕</button>
             {authMode === "verify" ? (
               <div className="text-center space-y-6 py-6">
                 <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-none flex items-center justify-center mx-auto text-3xl">📧</div>
@@ -894,22 +902,22 @@ const AppInner: React.FC = () => {
               <>
                 <div className="text-center space-y-2">
                   <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">{authMode === "signin" ? "Initialize Secure Access" : "Join StuddiSmart"}</h3>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium text-xs text-slate-500 dark:text-slate-400">Access your personal synthesis terminal.</p>
+                  <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">Access your personal synthesis terminal.</p>
                 </div>
                 <div className="space-y-4">
                   {authMode === "signup" && (
                     <div className="space-y-1">
                       <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4 block">Identity</label>
-                      <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm text-slate-800 dark:text-slate-100" placeholder="Full name" />
+                      <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm text-slate-800 dark:text-slate-100" placeholder="Full name" />
                     </div>
                   )}
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4 block">Endpoint (Email)</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm text-slate-800 dark:text-slate-100" placeholder="name@domain.com" />
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm text-slate-800 dark:text-slate-100" placeholder="name@domain.com" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4 block">Access Key (Password)</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm text-slate-800 dark:text-slate-100" placeholder="••••••••" />
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-none font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm text-slate-800 dark:text-slate-100" placeholder="••••••••" />
                   </div>
                   {authError && <div className="text-[10px] font-black text-red-500 uppercase text-center bg-red-50 dark:bg-red-900/10 p-3 rounded-none border border-red-100 dark:border-red-900/20">{authError}</div>}
                   <Button className="w-full h-14 text-sm rounded-none shadow-md" onClick={handleAuth} isLoading={isAuthLoading}>

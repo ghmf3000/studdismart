@@ -11,19 +11,24 @@ interface FlashcardViewerProps {
   onNext?: () => void;
 }
 
-const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean; variant?: 'light' | 'dark' }> = ({ onListen, isPlaying, variant = 'light' }) => (
+const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean; isGenerating: boolean; variant?: 'light' | 'dark' }> = ({ onListen, isPlaying, isGenerating, variant = 'light' }) => (
   <button 
     onClick={(e) => { e.stopPropagation(); onListen(); }}
+    disabled={isGenerating}
     className={`group relative flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full transition-all duration-300 border shadow-sm active:scale-90 shrink-0 ${
       isPlaying 
-      ? 'bg-blue-600 border-blue-500 text-white ring-4 ring-blue-500/20' 
-      : variant === 'light'
-        ? 'bg-white border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 dark:hover:text-blue-400'
-        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-900/50'
+      ? 'bg-emerald-600 border-emerald-500 text-white ring-4 ring-emerald-500/20' 
+      : isGenerating
+        ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-300 cursor-wait'
+        : variant === 'light'
+          ? 'bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 dark:hover:text-emerald-400'
+          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-900/50'
     }`}
-    title={isPlaying ? "Stop" : "Listen to audio"}
+    title={isPlaying ? "Stop" : isGenerating ? "Generating Audio..." : "Listen to audio"}
   >
-    {isPlaying ? (
+    {isGenerating ? (
+      <div className="w-4 h-4 border-2 border-slate-200 border-t-emerald-500 rounded-full animate-spin" />
+    ) : isPlaying ? (
       <div className="flex gap-0.5 items-center justify-center">
         <div className="w-0.5 h-2.5 bg-white rounded-full animate-[bounce_0.6s_infinite_0ms]" />
         <div className="w-0.5 h-3.5 bg-white rounded-full animate-[bounce_0.6s_infinite_200ms]" />
@@ -39,16 +44,17 @@ const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean; variant
 );
 
 const TutorSkeleton: React.FC = () => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 animate-pulse">
-    {[1, 2, 3, 4, 5].map((i) => (
-      <div key={i} className="space-y-3 bg-slate-50/50 dark:bg-slate-800/20 p-5 rounded-none border border-dashed border-slate-200 dark:border-slate-700">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10">
+    {[1, 2, 3, 4, 5, 6].map((i) => (
+      <div key={i} className="space-y-4 p-5 border border-slate-100 dark:border-slate-800 rounded-none bg-white dark:bg-slate-900/50">
         <div className="flex items-center gap-2">
           <div className="w-1 h-5 bg-slate-200 dark:bg-slate-700 rounded-full" />
-          <div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
+          <div className="h-3 w-32 shimmer-bg animate-shimmer rounded" />
         </div>
         <div className="space-y-2">
-          <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded" />
-          <div className="h-4 w-5/6 bg-slate-100 dark:bg-slate-800 rounded" />
+          <div className="h-4 w-full shimmer-bg animate-shimmer rounded" />
+          <div className="h-4 w-5/6 shimmer-bg animate-shimmer rounded" />
+          <div className="h-4 w-4/6 shimmer-bg animate-shimmer rounded opacity-50" />
         </div>
       </div>
     ))}
@@ -65,6 +71,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
   const [showTutor, setShowTutor] = useState(false);
   const [isFetchingTutor, setIsFetchingTutor] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
   
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -145,7 +152,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
     }
 
     stopAudio();
-    setPlayingId(id);
+    setGeneratingAudioId(id);
 
     try {
       const base64Audio = await generateAudio(text);
@@ -158,6 +165,10 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
       const source = audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioCtx.destination);
+      
+      setGeneratingAudioId(null);
+      setPlayingId(id);
+
       source.onended = () => {
         if (audioSourceRef.current === source) {
           setPlayingId(null);
@@ -169,6 +180,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
       source.start();
     } catch (err) {
       console.error("TTS failed", err);
+      setGeneratingAudioId(null);
       setPlayingId(null);
     }
   };
@@ -201,14 +213,15 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
           <div className="card-front bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col p-0 overflow-hidden rounded-none border-t-4 border-t-emerald-500">
             <div className="flex-1 w-full flex flex-col p-8 md:p-12 space-y-4 overflow-y-auto">
               {card?.imagePrompt && (
-                <div className="w-full h-20 md:h-28 flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden shadow-inner border border-slate-100 dark:border-slate-700 shrink-0 rounded-none">
-                  {isImageLoading ? (
-                    <div className="w-full h-full animate-pulse flex items-center justify-center">
-                       <div className="w-6 h-6 border-2 border-emerald-100 dark:border-emerald-900/30 border-t-emerald-600 dark:border-t-emerald-500 rounded-full animate-spin" />
+                <div className="w-full h-20 md:h-28 flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden shadow-inner border border-slate-100 dark:border-slate-700 shrink-0 rounded-none relative">
+                  {isImageLoading && (
+                    <div className="absolute inset-0 shimmer-bg animate-shimmer flex items-center justify-center">
+                       <svg className="w-6 h-6 text-slate-300 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     </div>
-                  ) : imageUrl ? (
-                    <img src={imageUrl} alt="Concept Diagram" className="w-full h-full object-cover" />
-                  ) : null}
+                  )}
+                  {imageUrl && (
+                    <img src={imageUrl} alt="Concept Diagram" className={`w-full h-full object-cover transition-opacity duration-500 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`} />
+                  )}
                 </div>
               )}
               <div className="flex-1 flex flex-col items-center justify-center min-h-0 text-center gap-4">
@@ -216,6 +229,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                     <ListenButton 
                       onListen={() => handleSpeak(card.question, `q-${card.id}`)} 
                       isPlaying={playingId === `q-${card.id}`} 
+                      isGenerating={generatingAudioId === `q-${card.id}`}
                       variant="light"
                     />
                     <h3 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white leading-tight">
@@ -238,6 +252,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                 <ListenButton 
                   onListen={() => handleSpeak(card.answer, `a-${card.id}`)} 
                   isPlaying={playingId === `a-${card.id}`} 
+                  isGenerating={generatingAudioId === `a-${card.id}`}
                   variant="dark"
                 />
                 <p className="text-xl md:text-2xl font-bold leading-tight">
@@ -276,7 +291,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
           Previous
         </button>
         
-        <div className="px-6 py-2 bg-slate-800 dark:bg-slate-700 rounded-none text-white shadow-lg flex items-center gap-3 border border-slate-700 dark:border-slate-600">
+        <div className="px-6 py-2 bg-slate-800 dark:bg-slate-700 rounded-none text-white shadow-lg flex items-center gap-3 border border-slate-700 dark:border-slate-600 transition-transform hover:scale-105">
            <span className="text-[9px] font-black tracking-widest text-slate-400 dark:text-slate-400 uppercase">Card</span>
            <span className="text-xs md:text-sm font-black text-emerald-400">{index + 1} <span className="text-slate-600 dark:text-slate-500">/</span> {total}</span>
         </div>
@@ -318,15 +333,19 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
               {!tutorData ? (
                 <TutorSkeleton />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* SECTION: SIMPLE EXPLANATION */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                        <div className="w-1 h-4 bg-emerald-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Simple Explanation</span>
                       </div>
-                      <ListenButton onListen={() => handleSpeak(tutorData.simpleExplanation, 'sum')} isPlaying={playingId === 'sum'} />
+                      <ListenButton 
+                        onListen={() => handleSpeak(tutorData.simpleExplanation, 'sum')} 
+                        isPlaying={playingId === 'sum'} 
+                        isGenerating={generatingAudioId === 'sum'}
+                      />
                     </div>
                     <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                       {tutorData.simpleExplanation}
@@ -340,7 +359,11 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                         <div className="w-1 h-4 bg-orange-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Real-World Example</span>
                       </div>
-                      <ListenButton onListen={() => handleSpeak(tutorData.realWorldExample, 'rw')} isPlaying={playingId === 'rw'} />
+                      <ListenButton 
+                        onListen={() => handleSpeak(tutorData.realWorldExample, 'rw')} 
+                        isPlaying={playingId === 'rw'} 
+                        isGenerating={generatingAudioId === 'rw'}
+                      />
                     </div>
                     <div className="bg-orange-50/20 dark:bg-orange-900/10 p-4 rounded-none border border-orange-100/50 dark:border-orange-900/20">
                       <p className="text-sm md:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-bold italic">
@@ -395,7 +418,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                       {tutorData.quickCheck.map((item, i) => (
-                        <div key={i} className="bg-slate-50 dark:bg-slate-700/30 p-4 border border-slate-100 dark:border-slate-600 rounded-none space-y-2">
+                        <div key={i} className="bg-slate-50 dark:bg-slate-700/30 p-4 border border-slate-100 dark:border-slate-600 rounded-none space-y-2 group hover:border-emerald-500/30 transition-colors duration-300">
                           <p className="text-xs font-black uppercase text-slate-400">Question {i+1}</p>
                           <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.question}</p>
                           <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">

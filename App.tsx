@@ -42,9 +42,9 @@ class ErrorBoundary extends React.Component<
       return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-6 flex items-center justify-center">
           <div className="max-w-2xl w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-none p-8 md:p-14 shadow-2xl">
-            <h2 className="text-3xl font-black tracking-tight mb-4">Terminal Error</h2>
+            <h2 className="text-3xl font-black tracking-tight mb-4 text-slate-900 dark:text-white">Terminal Error</h2>
             <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">The synthesis session encountered an unexpected hardware/software conflict.</p>
-            <div className="p-5 rounded-none bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono overflow-auto mb-8 max-h-40">
+            <div className="p-5 rounded-none bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono overflow-auto mb-8 max-h-40 text-slate-600 dark:text-slate-400">
               {message}
             </div>
             <Button onClick={() => window.location.reload()} className="w-full h-14 rounded-none">Re-Initialize App</Button>
@@ -182,7 +182,7 @@ const AppInner: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [quizIndex, setQuizIndex] = useState(0);
 
-  const [view, setView] = useState<"home" | "viewer" | "profile" | "pricing">("home");
+  const [view, setView] = useState<"home" | "viewer" | "profile" | "pricing" | "about">("home");
   const [selectedDoc, setSelectedDoc] = useState<SelectedDoc | null>(null);
 
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
@@ -488,6 +488,12 @@ const AppInner: React.FC = () => {
                 Home
               </button>
               <button 
+                onClick={() => setView("about")}
+                className={`text-[10px] font-black uppercase tracking-widest hover:text-emerald-500 transition-colors ${view === 'about' ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`}
+              >
+                About Us
+              </button>
+              <button 
                 onClick={() => setView("pricing")}
                 className={`text-[10px] font-black uppercase tracking-widest hover:text-emerald-500 transition-colors ${view === 'pricing' ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`}
               >
@@ -569,7 +575,7 @@ const AppInner: React.FC = () => {
                 <div className="absolute inset-0 bg-white/95 dark:bg-slate-800/95 z-50 flex flex-col items-center justify-center p-8 backdrop-blur-sm rounded-none">
                   <div className="w-16 h-16 md:w-20 md:h-20 border-[6px] border-emerald-100 dark:border-emerald-900 border-t-emerald-500 rounded-full animate-spin mb-8 shadow-md" />
                   <div className="text-center space-y-3">
-                    <p className="text-xl md:text-2xl font-black tracking-tight">{STUDY_TIPS[tipIndex]}</p>
+                    <p className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white">{STUDY_TIPS[tipIndex]}</p>
                     <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Synthesizing source logic</p>
                   </div>
                 </div>
@@ -577,7 +583,7 @@ const AppInner: React.FC = () => {
 
               <div className="bg-slate-50 dark:bg-slate-900 rounded-none p-6 md:p-10 space-y-8">
                 <textarea
-                  className="w-full h-40 md:h-60 bg-transparent outline-none resize-none text-lg md:text-2xl font-bold placeholder:text-slate-300 dark:placeholder:text-slate-700 leading-relaxed"
+                  className="w-full h-40 md:h-60 bg-transparent outline-none resize-none text-lg md:text-2xl font-bold placeholder:text-slate-300 dark:placeholder:text-slate-700 leading-relaxed text-slate-900 dark:text-slate-100"
                   placeholder="Paste your source material here..."
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -590,7 +596,7 @@ const AppInner: React.FC = () => {
                         {selectedDoc.mimeType.includes("pdf") ? "PDF" : "IMG"}
                       </div>
                       <div className="text-left">
-                        <span className="text-xs md:text-sm font-black truncate block max-w-[150px] md:max-w-xs">{selectedDoc.name}</span>
+                        <span className="text-xs md:text-sm font-black truncate block max-w-[150px] md:max-w-xs text-slate-900 dark:text-slate-100">{selectedDoc.name}</span>
                         <span className="text-[9px] uppercase font-black tracking-widest text-slate-400">Resource Attached</span>
                       </div>
                     </div>
@@ -730,7 +736,7 @@ const AppInner: React.FC = () => {
         {view === "pricing" && (
           <div className="max-w-4xl mx-auto py-10 animate-content space-y-12">
             <div className="text-center space-y-4">
-              <h2 className="text-4xl font-black tracking-tight">Select Synthesis Plan</h2>
+              <h2 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">Select Synthesis Plan</h2>
               <p className="text-slate-500 dark:text-slate-400 max-w-lg mx-auto">Scale your learning matrix with StuddiSmart professional tools.</p>
             </div>
             
@@ -738,8 +744,8 @@ const AppInner: React.FC = () => {
               {/* FREE */}
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 flex flex-col space-y-8 rounded-none hover:shadow-xl transition-shadow">
                 <div className="space-y-2">
-                  <h3 className="text-xl font-black">Free Scholar</h3>
-                  <div className="text-4xl font-black">$0<span className="text-sm text-slate-400 font-medium"> / mo</span></div>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white">Free Scholar</h3>
+                  <div className="text-4xl font-black text-slate-900 dark:text-white">$0<span className="text-sm text-slate-400 font-medium"> / mo</span></div>
                 </div>
                 <ul className="space-y-4 text-sm font-bold text-slate-600 dark:text-slate-300 flex-grow">
                   <li className="flex items-center gap-3"><svg className="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg> 5 Sets per Month</li>
@@ -754,8 +760,8 @@ const AppInner: React.FC = () => {
               <div className="bg-white dark:bg-slate-800 border-2 border-emerald-500 p-8 flex flex-col space-y-8 rounded-none relative shadow-2xl shadow-emerald-500/10">
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-none">Recommended</div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-black">StuddiSmart Pro</h3>
-                  <div className="text-4xl font-black">$19<span className="text-sm text-slate-400 font-medium"> / mo</span></div>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white">StuddiSmart Pro</h3>
+                  <div className="text-4xl font-black text-slate-900 dark:text-white">$19<span className="text-sm text-slate-400 font-medium"> / mo</span></div>
                 </div>
                 <ul className="space-y-4 text-sm font-bold text-slate-600 dark:text-slate-200 flex-grow">
                   <li className="flex items-center gap-3"><svg className="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg> Unlimited Synthesis</li>
@@ -769,9 +775,86 @@ const AppInner: React.FC = () => {
           </div>
         )}
 
+        {view === "about" && (
+          <div className="max-w-3xl mx-auto py-10 animate-content space-y-12">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 md:p-14 space-y-10 rounded-none shadow-xl border-t-4 border-t-emerald-500">
+              <section className="space-y-4">
+                <h2 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white">About StuddiSmart</h2>
+                <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium">
+                  StuddiSmart is an AI-powered learning platform designed to help students and lifelong learners study smarter—not longer.
+                  With StuddiSmart, you can upload your PDFs, notes, or images and instantly transform them into:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                  <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 space-y-2">
+                    <div className="text-emerald-500 text-2xl font-black">01</div>
+                    <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Flashcards</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Quick and effective memorization modules.</p>
+                  </div>
+                  <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 space-y-2">
+                    <div className="text-emerald-500 text-2xl font-black">02</div>
+                    <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Quizzes</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Test understanding and track synthesis progress.</p>
+                  </div>
+                  <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 space-y-2">
+                    <div className="text-emerald-500 text-2xl font-black">03</div>
+                    <h4 className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Mindmaps</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Visualize concepts and connect complex ideas.</p>
+                  </div>
+                </div>
+                <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed font-medium pt-4 text-slate-900 dark:text-white">
+                  We built StuddiSmart for people who want clarity, speed, and confidence in their learning process. Instead of rereading notes or feeling overwhelmed, StuddiSmart helps you actively engage with your material and retain what matters most.
+                </p>
+              </section>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-8 border-t border-slate-100 dark:border-slate-700">
+                <section className="space-y-4">
+                  <h3 className="text-xl font-black uppercase tracking-widest text-emerald-500">Our Mission</h3>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm font-bold">
+                    To make studying more efficient, intuitive, and accessible for everyone—so learning feels less stressful and more empowering.
+                  </p>
+                </section>
+                <section className="space-y-4">
+                  <h3 className="text-xl font-black uppercase tracking-widest text-emerald-500">Who We Are For</h3>
+                  <ul className="space-y-2 text-slate-600 dark:text-slate-400 text-sm font-bold">
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-emerald-500" /> Students preparing for exams</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-emerald-500" /> Professionals seeking certifications</li>
+                    <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-emerald-500" /> Lifelong learners and researchers</li>
+                  </ul>
+                </section>
+              </div>
+
+              <section className="space-y-6 pt-8 border-t border-slate-100 dark:border-slate-700">
+                <h3 className="text-xl font-black uppercase tracking-widest text-emerald-500">Our Approach</h3>
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    <div className="shrink-0 w-8 h-8 bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black">A</div>
+                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">AI-powered insights that adapt to your content in real-time.</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="shrink-0 w-8 h-8 bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black">B</div>
+                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Clean, distraction-free design that keeps you focused on results.</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="shrink-0 w-8 h-8 bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black">C</div>
+                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Privacy-minded technology built with modern security practices.</p>
+                  </div>
+                </div>
+              </section>
+
+              <div className="pt-10 flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-50 dark:bg-slate-900 p-8 border border-slate-100 dark:border-slate-700">
+                <div className="space-y-1">
+                  <h4 className="font-black text-sm uppercase tracking-[0.2em] text-slate-400">Questions or feedback?</h4>
+                  <p className="font-black text-emerald-500">support@studdismart.com</p>
+                </div>
+                <Button variant="outline" className="h-12 px-8" onClick={() => window.location.href='mailto:support@studdismart.com'}>Contact Us</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {view === "profile" && user && (
           <div className="max-w-xl mx-auto animate-content">
-            <div className="bg-white dark:bg-slate-800 rounded-none p-10 md:p-14 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10">
+            <div className="bg-white dark:bg-slate-800 rounded-none p-10 md:p-14 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 border-t-4 border-t-emerald-500">
               <div className="flex flex-col items-center space-y-6">
                 <div className="w-20 h-20 bg-emerald-600 dark:bg-emerald-500 text-white rounded-none flex items-center justify-center text-3xl font-black shadow-lg">
                   {user.name?.[0]}
@@ -811,7 +894,7 @@ const AppInner: React.FC = () => {
               <>
                 <div className="text-center space-y-2">
                   <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">{authMode === "signin" ? "Initialize Secure Access" : "Join StuddiSmart"}</h3>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">Access your personal synthesis terminal.</p>
+                  <p className="text-slate-500 dark:text-slate-400 font-medium text-xs text-slate-500 dark:text-slate-400">Access your personal synthesis terminal.</p>
                 </div>
                 <div className="space-y-4">
                   {authMode === "signup" && (
@@ -847,9 +930,9 @@ const AppInner: React.FC = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-t border-slate-200 dark:border-slate-700 pt-8 opacity-40">
           <p className="text-[8px] font-black uppercase tracking-[0.4em]">© 2026 StuddiSmart AI • Core Learning Matrix</p>
           <div className="flex gap-8 text-[8px] font-black uppercase tracking-[0.4em]">
-            <a href="#" className="hover:text-emerald-500 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-emerald-500 transition-colors">Terms</a>
-            <a href="#" className="hover:text-emerald-500 transition-colors">Support</a>
+            <button onClick={() => setView("about")} className="hover:text-emerald-500 transition-colors uppercase">Privacy</button>
+            <button onClick={() => setView("about")} className="hover:text-emerald-500 transition-colors uppercase">Terms</button>
+            <button onClick={() => setView("about")} className="hover:text-emerald-500 transition-colors uppercase">Support</button>
           </div>
         </div>
       </footer>

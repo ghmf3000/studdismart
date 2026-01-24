@@ -28,10 +28,9 @@ interface ErrorBoundaryState {
   error?: any;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Explicitly using React.Component to ensure TypeScript correctly recognizes inherited members like 'props'
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = { hasError: false, error: undefined };
-
-  // Removed redundant constructor that caused line 66 error to ensure 'props' is inherited correctly
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
@@ -86,6 +85,33 @@ const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean }> = ({
     {isPlaying ? "Playing" : "Listen"}
   </button>
 );
+
+const FAQItem: React.FC<{ question: string; answer: React.ReactNode }> = ({ question, answer }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="border-b border-slate-200 dark:border-slate-800 last:border-0 transition-colors">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between py-6 text-left group"
+      >
+        <span className={`text-sm md:text-base font-bold transition-colors ${isOpen ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300 group-hover:text-emerald-500"}`}>
+          {question}
+        </span>
+        <div className={`shrink-0 w-8 h-8 rounded-none border flex items-center justify-center transition-all ${isOpen ? "bg-emerald-600 border-emerald-600 text-white rotate-45" : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 group-hover:border-emerald-500 group-hover:text-emerald-500"}`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        </div>
+      </button>
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-96 pb-6 opacity-100" : "max-h-0 opacity-0"}`}>
+        <div className="text-sm md:text-base text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+          {answer}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
   node,
@@ -642,8 +668,8 @@ const AppInner: React.FC = () => {
 
       <main className="container-responsive flex-grow py-10 md:py-16">
         {view === "home" && (
-          <div className="max-w-4xl mx-auto space-y-10 md:space-y-20 text-center animate-content">
-            <div className="space-y-6">
+          <div className="max-w-4xl mx-auto space-y-10 md:space-y-20 animate-content">
+            <div className="text-center space-y-6">
               <div className="inline-flex px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-none text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-100 dark:border-emerald-800">
                 ✨ Automated Academic Synthesis
               </div>
@@ -706,6 +732,76 @@ const AppInner: React.FC = () => {
                     Generate Flashcards, Quiz and Mindmap
                   </Button>
                 </div>
+              </div>
+            </div>
+
+            {/* FAQ SECTION */}
+            <div className="pt-20 md:pt-32 space-y-12">
+              <div className="text-center space-y-4">
+                <h3 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 dark:text-white">Frequently Asked Questions</h3>
+                <p className="text-slate-500 dark:text-slate-400 max-w-lg mx-auto font-medium">Everything you need to know about the StuddiSmart learning matrix.</p>
+              </div>
+              <div className="max-w-3xl mx-auto bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4 md:p-8 rounded-none">
+                <FAQItem 
+                  question="What is StuddiSmart?" 
+                  answer="StuddiSmart is an AI-powered study platform that turns your notes, PDFs, and images into flashcards, quizzes, and mindmaps in minutes."
+                />
+                <FAQItem 
+                  question="Who is StuddiSmart for?" 
+                  answer="StuddiSmart is for students, professionals, and lifelong learners who want a faster, smarter way to study and retain information."
+                />
+                <FAQItem 
+                  question="How does it work?" 
+                  answer={
+                    <ul className="space-y-2 list-disc pl-5">
+                      <li>Upload a PDF, image, or paste your notes</li>
+                      <li>StuddiSmart analyzes your content using AI</li>
+                      <li>Your personalized study materials are generated instantly</li>
+                    </ul>
+                  }
+                />
+                <FAQItem 
+                  question="What can I upload?" 
+                  answer={
+                    <ul className="space-y-2 list-disc pl-5">
+                      <li>PDF documents</li>
+                      <li>Images (JPG, PNG, screenshots)</li>
+                      <li>Text pasted directly into the app</li>
+                    </ul>
+                  }
+                />
+                <FAQItem 
+                  question="Do I need an account?" 
+                  answer="You can explore StuddiSmart without an account. Creating an account lets you save sessions and access your materials across devices."
+                />
+                <FAQItem 
+                  question="Is StuddiSmart free?" 
+                  answer="StuddiSmart offers a free tier with core features. Premium features may be available with a paid plan."
+                />
+                <FAQItem 
+                  question="Is my data safe?" 
+                  answer="Yes. StuddiSmart uses modern security practices and trusted services to protect your information. Please avoid uploading highly sensitive personal data."
+                />
+                <FAQItem 
+                  question="Does StuddiSmart store my files?" 
+                  answer="Your content is processed to generate study materials. Files may be handled temporarily or saved depending on features you use."
+                />
+                <FAQItem 
+                  question="How accurate is the AI?" 
+                  answer="StuddiSmart provides structured learning support, but AI content may occasionally be imperfect. Always review generated materials before relying on them."
+                />
+                <FAQItem 
+                  question="Can I delete my account or data?" 
+                  answer="Yes. You can request deletion at any time by contacting us."
+                />
+                <FAQItem 
+                  question="Does it work on mobile?" 
+                  answer="Yes. StuddiSmart works on desktop, tablet, and mobile browsers."
+                />
+                <FAQItem 
+                  question="Who can I contact for help?" 
+                  answer={<span>📩 <a href="mailto:support@studdismart.com" className="text-emerald-500 font-bold hover:underline">support@studdismart.com</a></span>}
+                />
               </div>
             </div>
           </div>

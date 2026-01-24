@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Flashcard, TutorExplanation } from '../types';
-import { generateFlashcardImage, fetchTutorInsights, generateAudio } from '../services/geminiService';
+import { fetchTutorInsights, generateAudio } from '../services/geminiService';
 import { Button } from './Button';
 
 interface FlashcardViewerProps {
@@ -65,8 +65,6 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
   if (!card) return null;
 
   const [isFlipped, setIsFlipped] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isImageLoading, setIsImageLoading] = useState(false);
   const [tutorData, setTutorData] = useState<TutorExplanation | null>(null);
   const [showTutor, setShowTutor] = useState(false);
   const [isFetchingTutor, setIsFetchingTutor] = useState(false);
@@ -91,11 +89,6 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
     setTutorData(null);
     setShowTutor(false);
     stopAudio();
-    if (card?.imagePrompt) {
-      loadImage();
-    } else {
-      setImageUrl(null);
-    }
   }, [card]);
 
   useEffect(() => {
@@ -110,18 +103,6 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
       }
     };
   }, []);
-
-  const loadImage = async () => {
-    setIsImageLoading(true);
-    try {
-      const url = await generateFlashcardImage(card.imagePrompt!);
-      setImageUrl(url);
-    } catch (e) {
-      setImageUrl(null);
-    } finally {
-      setIsImageLoading(false);
-    }
-  };
 
   const decode = (base64: string) => {
     const binaryString = atob(base64);
@@ -212,18 +193,6 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
           {/* FRONT */}
           <div className="card-front bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col p-0 overflow-hidden rounded-none border-t-4 border-t-emerald-500">
             <div className="flex-1 w-full flex flex-col p-8 md:p-12 space-y-4 overflow-y-auto">
-              {card?.imagePrompt && (
-                <div className="w-full h-20 md:h-28 flex items-center justify-center bg-slate-100 dark:bg-slate-900 overflow-hidden shadow-inner border border-slate-200 dark:border-slate-700 shrink-0 rounded-none relative">
-                  {isImageLoading && (
-                    <div className="absolute inset-0 shimmer-bg animate-shimmer flex items-center justify-center">
-                       <svg className="w-6 h-6 text-slate-300 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    </div>
-                  )}
-                  {imageUrl && (
-                    <img src={imageUrl} alt="Concept Diagram" className={`w-full h-full object-cover transition-opacity duration-500 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`} />
-                  )}
-                </div>
-              )}
               <div className="flex-1 flex flex-col items-center justify-center min-h-0 text-center gap-4">
                   <div className="flex flex-col items-center gap-3 w-full">
                     <ListenButton 

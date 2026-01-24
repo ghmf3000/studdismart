@@ -90,10 +90,9 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
                 type: Type.OBJECT,
                 properties: {
                   question: { type: Type.STRING },
-                  answer: { type: Type.STRING },
-                  imagePrompt: { type: Type.STRING, description: "A simple visual description for an icon representing this concept." }
+                  answer: { type: Type.STRING }
                 },
-                required: ["question", "answer", "imagePrompt"]
+                required: ["question", "answer"]
               }
             },
             quiz: {
@@ -147,26 +146,6 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
       quiz: (data.quiz || []).map((q: any, i: number) => ({ ...q, id: `q-${i}` })),
       mindmap: data.mindmap || { label: "Main Topic", children: [] }
     };
-  });
-};
-
-export const generateFlashcardImage = async (prompt: string): Promise<string> => {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [{ text: `Minimalist educational icon for: ${prompt}. Clean line art, white background, high contrast.` }]
-      },
-      config: { temperature: 0.2 }
-    });
-
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    }
-    throw new Error("No image generated");
   });
 };
 

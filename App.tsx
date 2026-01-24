@@ -28,9 +28,10 @@ interface ErrorBoundaryState {
   error?: any;
 }
 
-// Fix: Explicitly use React.Component and declare the state property to fix TS2339 errors
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public override state: ErrorBoundaryState = { hasError: false, error: undefined };
+// Fixed: Extends Component directly from React and removes the 'override' keyword which was causing issues with property recognition.
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Removed override as it can lead to "class does not extend another class" errors in some TypeScript environments.
+  public state: ErrorBoundaryState = { hasError: false, error: undefined };
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -664,7 +665,7 @@ const AppInner: React.FC = () => {
               <div className="bg-slate-100/50 dark:bg-slate-900 rounded-none p-6 md:p-10 space-y-8">
                 <textarea
                   className="w-full h-40 md:h-60 bg-transparent outline-none resize-none text-lg md:text-2xl font-bold placeholder:text-slate-300 dark:placeholder:text-slate-700 leading-relaxed text-slate-900 dark:text-slate-100"
-                  placeholder="Paste your source material here..."
+                  placeholder="Type your topic here or upload your documents, pdfs and notes here"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                 />
@@ -673,7 +674,7 @@ const AppInner: React.FC = () => {
                   <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-4 rounded-none border border-emerald-500/10 shadow-sm animate-in slide-in-from-bottom-2">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-none flex items-center justify-center text-[10px] font-black">
-                        {selectedDoc.mimeType.includes("pdf") ? "PDF" : "IMG"}
+                        {selectedDoc.mimeType.includes("pdf") ? "PDF" : "DOC"}
                       </div>
                       <div className="text-left">
                         <span className="text-xs md:text-sm font-black truncate block max-w-[150px] md:max-w-xs text-slate-900 dark:text-slate-100">{selectedDoc.name}</span>
@@ -686,11 +687,11 @@ const AppInner: React.FC = () => {
 
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 pt-8 border-t border-slate-200/50 dark:border-slate-700/50">
                   <Button variant="secondary" className="h-14 md:h-16 px-8 rounded-none bg-slate-50 hover:bg-white" onClick={() => fileInputRef.current?.click()}>
-                    {selectedDoc ? "Replace" : "Add Source"}
+                    {selectedDoc ? "Replace" : "Upload"}
                   </Button>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onChange={handleFileChange} />
                   <Button className="flex-1 h-14 md:h-16 text-lg rounded-none shadow-sm" onClick={handleGenerate}>
-                    Start Synthesis
+                    Generate Flashcards, Quiz and Mindmap
                   </Button>
                 </div>
               </div>
@@ -755,7 +756,7 @@ const AppInner: React.FC = () => {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-slate-100">Synthesis Verified</h3>
+                        <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Synthesis Verified</h3>
                         <p className="text-slate-500 font-bold text-xs">Identified {quizResults.correctCount} / {quiz.length} patterns correctly.</p>
                       </div>
                       <Button className="w-full h-12 text-xs rounded-none bg-blue-600 hover:bg-blue-700 text-white border-none" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Reset Checkpoint</Button>
@@ -766,7 +767,7 @@ const AppInner: React.FC = () => {
                         <div className="inline-block px-4 py-1 bg-slate-200 dark:bg-slate-700 rounded-none text-[9px] font-black uppercase tracking-widest text-slate-500">
                           Checkpoint {quizIndex + 1} of {quiz.length}
                         </div>
-                        <h3 className="text-lg md:text-xl font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100">{quiz[quizIndex]?.question}</h3>
+                        <h3 className="text-lg md:text-xl font-bold leading-tight tracking-tight text-slate-900 dark:text-white">{quiz[quizIndex]?.question}</h3>
                         <div className="flex justify-center">
                           <ListenButton onListen={() => handleSpeak(quiz[quizIndex]?.question || "", "q")} isPlaying={playingId === "q"} />
                         </div>

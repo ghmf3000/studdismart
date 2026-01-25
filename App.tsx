@@ -1,3 +1,4 @@
+
 import React, { Component, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/Button";
 import { FlashcardViewer } from "./components/FlashcardViewer";
@@ -27,14 +28,12 @@ interface ErrorBoundaryState {
   error?: any;
 }
 
-// Fixed ErrorBoundary by extending React.Component and using explicit property access to satisfy TypeScript constraints
+// Fix: Use React.Component explicitly to resolve 'props' type recognition issues in TypeScript class components.
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Explicitly declaring state property for the class instance
-  public override state: ErrorBoundaryState = { hasError: false, error: undefined };
+  public state: ErrorBoundaryState = { hasError: false, error: undefined };
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Initializing state in constructor as per standard class component pattern
     this.state = { hasError: false, error: undefined };
   }
 
@@ -47,7 +46,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Accessing state and props via this context which is now correctly typed as React.Component
     if (this.state.hasError) {
       const message =
         this.state.error instanceof Error
@@ -652,6 +650,88 @@ const AppInner: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="bg-white dark:bg-slate-800 border p-8 space-y-8"><h3 className="text-xl font-black">Free Scholar</h3><div className="text-4xl font-black">$0</div><Button variant="secondary" className="w-full" onClick={() => setView("home")}>Current Plan</Button></div>
               <div className="bg-white dark:bg-slate-800 border-2 border-emerald-500 p-8 space-y-8"><h3 className="text-xl font-black">Pro Scholar</h3><div className="text-4xl font-black">$19</div><Button className="w-full" onClick={() => handleUpgrade('pro')}>Upgrade</Button></div>
+            </div>
+          </div>
+        )}
+
+        {view === "about" && (
+          <div className="max-w-4xl mx-auto space-y-12 py-10 animate-content">
+            <div className="text-center space-y-6">
+              <div className="inline-flex px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 rounded-none text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-emerald-100">Genesis & Mission</div>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-[0.95] text-slate-900 dark:text-white">About StuddiSmart</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-base md:text-xl font-medium max-w-2xl mx-auto">
+                StuddiSmart is an AI-powered learning platform designed to help students and lifelong learners study smarter—not longer.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 p-8 md:p-12 border border-slate-200 dark:border-slate-700 space-y-8">
+              <p className="text-slate-600 dark:text-slate-300 font-medium">With StuddiSmart, you can upload your PDFs, notes, or images and instantly transform them into:</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="space-y-3">
+                  <div className="w-12 h-12 bg-emerald-600 rounded-none flex items-center justify-center text-white font-black">FC</div>
+                  <h4 className="text-lg font-black uppercase">Flashcards</h4>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed">For quick and effective memorization.</p>
+                </div>
+                <div className="space-y-3">
+                  <div className="w-12 h-12 bg-blue-600 rounded-none flex items-center justify-center text-white font-black">QZ</div>
+                  <h4 className="text-lg font-black uppercase">Quizzes</h4>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed">To test your understanding and track progress.</p>
+                </div>
+                <div className="space-y-3">
+                  <div className="w-12 h-12 bg-purple-600 rounded-none flex items-center justify-center text-white font-black">MM</div>
+                  <h4 className="text-lg font-black uppercase">Mindmaps</h4>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed">To visualize concepts and connect ideas.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <p className="text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                We built StuddiSmart for people who want clarity, speed, and confidence in their learning process. Instead of rereading notes or feeling overwhelmed, StuddiSmart helps you actively engage with your material and retain what matters most.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="space-y-4">
+                <h3 className="text-2xl font-black text-emerald-600">Our Mission</h3>
+                <p className="text-slate-600 dark:text-slate-400 font-medium">To make studying more efficient, intuitive, and accessible for everyone—so learning feels less stressful and more empowering.</p>
+              </div>
+              <div className="space-y-4">
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Who StuddiSmart Is For</h3>
+                <ul className="space-y-2 text-slate-600 dark:text-slate-400 font-medium list-disc pl-5">
+                  <li>Students preparing for exams or finals</li>
+                  <li>Professionals studying for certifications</li>
+                  <li>Anyone who wants a smarter way to learn and retain information</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-10 md:p-12 space-y-6 border-l-8 border-emerald-500">
+               <h3 className="text-2xl font-black">Our Approach</h3>
+               <div className="grid grid-cols-1 gap-4">
+                 <div className="flex gap-4">
+                   <span className="text-emerald-400 font-black">01</span>
+                   <p><span className="font-black uppercase tracking-widest text-[10px] block text-slate-500 mb-1">Adaptive Intelligence</span> AI-powered insights that adapt to your content</p>
+                 </div>
+                 <div className="flex gap-4">
+                   <span className="text-emerald-400 font-black">02</span>
+                   <p><span className="font-black uppercase tracking-widest text-[10px] block text-slate-500 mb-1">Clean UX</span> Clean, distraction-free design that keeps you focused</p>
+                 </div>
+                 <div className="flex gap-4">
+                   <span className="text-emerald-400 font-black">03</span>
+                   <p><span className="font-black uppercase tracking-widest text-[10px] block text-slate-500 mb-1">Security First</span> Privacy-minded technology built with modern security practices</p>
+                 </div>
+               </div>
+            </div>
+
+            <div className="text-center py-10 border-t border-slate-200 dark:border-slate-800 space-y-8">
+               <p className="text-slate-600 dark:text-slate-400 font-medium max-w-2xl mx-auto italic">
+                 "At StuddiSmart, we believe learning works best when it’s active, visual, and personalized. Our goal is to help you understand more, remember longer, and succeed with confidence."
+               </p>
+               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 inline-block shadow-xl">
+                 <h4 className="font-black mb-2 uppercase tracking-widest text-xs">📩 Questions or feedback?</h4>
+                 <p className="text-lg font-bold">Contact us at <a href="mailto:support@studdismart.com" className="text-emerald-600 hover:underline">support@studdismart.com</a></p>
+               </div>
             </div>
           </div>
         )}

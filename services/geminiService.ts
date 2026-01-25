@@ -18,8 +18,8 @@ export interface StudySet {
 /**
  * Robust retry utility to handle 429 Resource Exhausted errors.
  */
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 6): Promise<T> => {
-  let delay = 4000;
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> => {
+  let delay = 3000;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
@@ -32,27 +32,32 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 6): Promise<T> =>
         code === 429 || 
         code === '429' ||
         status === 'RESOURCE_EXHAUSTED' ||
-        message.includes('429') ||
-        message.includes('RESOURCE_EXHAUSTED');
+        message.toLowerCase().includes('429') ||
+        message.toLowerCase().includes('resource_exhausted') ||
+        message.toLowerCase().includes('too many requests');
 
       if (isQuotaError && i < maxRetries - 1) {
         console.warn(`[StuddiSmart AI] Rate limit (429) hit. Backing off for ${delay}ms... (Attempt ${i + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        delay = delay * 2 + Math.random() * 1000;
+        delay = delay * 2;
         continue;
       }
       
-      console.error("[StuddiSmart AI] API Execution Error:", { code, status, message, originalError: error });
+      if (isQuotaError) {
+        throw new Error("Too many requests, please try again in a moment. Our AI engine is currently under high load.");
+      }
+      
       throw error;
     }
   }
-  throw new Error('StuddiSmart AI service is currently overloaded. Please try again in a moment.');
+  throw new Error('AI service is currently overloaded. Please try again in a moment.');
 };
 
 export const generateStudySet = async (input: GenerationInput): Promise<StudySet> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const model = 'gemini-3-flash-preview';
+    // Fix: Using gemini-3-pro-preview for complex reasoning task (Study Set Generation)
+    const model = 'gemini-3-pro-preview';
     
     const prompt = `You are a world-class educational assistant. Generate a comprehensive study set based on the provided input (text, images, or documents like PDFs).
     Analyze the material thoroughly. Extract all relevant educational concepts.
@@ -152,6 +157,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
 export const fetchTutorInsights = async (question: string, answer: string): Promise<TutorExplanation> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Fix: Using gemini-3-pro-preview for complex reasoning task (Deep-dive Tutor Explanation)
     const prompt = `You are a world-class educational tutor. Provide a deep-dive explanation for the following flashcard:
     Question: ${question}
     Answer: ${answer}
@@ -165,7 +171,7 @@ export const fetchTutorInsights = async (question: string, answer: string): Prom
     - exactly 4 to 5 Quick Check questions with short answers.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: { parts: [{ text: prompt }] },
       config: {
         responseMimeType: "application/json",

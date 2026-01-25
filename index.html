@@ -54,15 +54,11 @@
         }
 
         body {
-          background-attachment: fixed;
-          background: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
-                      radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 40%);
+          background-color: #f3f4f6; /* Light grey */
         }
         
         .dark body {
-          background: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.1) 0%, transparent 40%),
-                      radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
-                      #0f172a; 
+          background-color: #0f172a; 
         }
 
         .glass { background: rgba(248, 250, 252, 0.8); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
@@ -115,7 +111,7 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300 min-h-screen flex flex-col selection:bg-emerald-500/30">
+<body class="bg-[#f3f4f6] dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-300 min-h-screen flex flex-col selection:bg-emerald-500/30">
     <div id="root" class="flex-grow flex flex-col"></div>
 <script type="module" src="/index.tsx"></script>
 </body>

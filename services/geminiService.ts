@@ -1,20 +1,13 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Flashcard, QuizQuestion, MindmapNode, TutorExplanation, StudySet, ChatMessage } from "../types";
+import { StudySet, TutorExplanation, ChatMessage } from "../types";
 
 export interface GenerationInput {
   text?: string;
-  attachment?: {
-    data: string;
-    mimeType: string;
-  };
+  attachment?: { data: string; mimeType: string };
   flashcardCount?: number;
   quizCount?: number;
   isDifferentSet?: boolean;
 }
 
-/**
- * Custom error for quota-related issues to allow specific UI handling.
- */
 export class QuotaExceededError extends Error {
   constructor(message: string) {
     super(message);
@@ -22,11 +15,11 @@ export class QuotaExceededError extends Error {
   }
 }
 
-/**
- * Robust retry utility to handle 429 (Quota) and 503 (Overloaded) errors.
- */
+const FUNCTION_URL =
+  "https://us-central1-studywiseai-458aa.cloudfunctions.net/generateStudySet";
+
 const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> => {
-  let delay = 3000;
+  let delay = 1500;
   let lastError: any = null;
 
   for (let i = 0; i < maxRetries; i++) {
@@ -34,262 +27,82 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> =>
       return await fn();
     } catch (error: any) {
       lastError = error;
-      const message = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
-      const status = error?.status || "";
-      
-      const isQuotaError = 
-        message.includes('429') || 
-        message.toLowerCase().includes('quota') || 
-        message.toLowerCase().includes('resource_exhausted') ||
-        status === 'RESOURCE_EXHAUSTED';
 
-      const isOverloaded = 
-        message.includes('503') || 
-        message.toLowerCase().includes('overloaded') || 
-        message.toLowerCase().includes('unavailable') ||
-        status === 'UNAVAILABLE';
+      const message = error?.message || String(error || "");
+      const isQuota = message.includes("429") || message.toLowerCase().includes("rate");
+      const isOverloaded = message.includes("503") || message.toLowerCase().includes("overloaded");
 
-      if (isQuotaError && i === maxRetries - 1) {
-        // If we still fail on quota after retries, throw specific error
-        throw new QuotaExceededError("You've reached the AI synthesis limit for this session. Please wait a few minutes or upgrade to bypass tier restrictions.");
+      if (isQuota && i === maxRetries - 1) {
+        throw new QuotaExceededError(
+          "StuddiSmart is rate-limited right now. Please wait 30 seconds and try again."
+        );
       }
 
-      if ((isQuotaError || isOverloaded) && i < maxRetries - 1) {
-        console.warn(`[StuddiSmart AI] System busy (Attempt ${i + 1}). Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay = delay * 2; // Exponential backoff
+      if ((isQuota || isOverloaded) && i < maxRetries - 1) {
+        await new Promise((r) => setTimeout(r, delay));
+        delay *= 2;
         continue;
       }
-      
+
       break;
     }
   }
 
-  const finalMessage = lastError?.message || "AI synthesis failed due to high server load.";
-  throw new Error(finalMessage);
+  throw new Error(lastError?.message || "Request failed.");
 };
 
 export const generateStudySet = async (input: GenerationInput): Promise<StudySet> => {
   return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const modelName = 'gemini-3-flash-preview';
-    
-    const fcCount = input.flashcardCount || 10;
-    const qCount = input.quizCount || 10;
-    const varietyPrompt = input.isDifferentSet 
-      ? "Provide a fresh perspective and different questions from previous iterations. Avoid common examples." 
-      : "Focus on fundamental core concepts and essential definitions.";
+    const res = await fetch(FUNCTION_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: input.text || "",
+        attachment: input.attachment,
+        flashcardCount: input.flashcardCount ?? 10,
+        quizCount: input.quizCount ?? 10,
+        isDifferentSet: input.isDifferentSet ?? false,
+      }),
+    });
 
-    const systemInstruction = `You are an elite educational synthesis engine. 
-    MANDATORY OUTPUT:
-    1. Exactly ${fcCount} Flashcards.
-    2. Exactly ${qCount} "Quiz" Questions (for practice).
-    3. Exactly ${qCount} "Test" Questions (for evaluation). 
-    IMPORTANT: Quiz and Test questions MUST be different.
-    4. Each question must include an explanation and a 'category' tag.
-    5. A hierarchical Mindmap.
-    ${varietyPrompt}
-    Return ONLY valid JSON.`;
-
-    const parts: any[] = [];
-    if (input.text) parts.push({ text: `Source Material:\n${input.text}` });
-    if (input.attachment) {
-      parts.push({ 
-        inlineData: { 
-          data: input.attachment.data, 
-          mimeType: input.attachment.mimeType 
-        } 
-      });
+    if (res.status === 429) {
+      const data = await res.json().catch(() => ({}));
+      throw new QuotaExceededError(
+        data?.error || "StuddiSmart is rate-limited. Please wait and try again."
+      );
     }
 
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: { parts },
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        temperature: input.isDifferentSet ? 0.7 : 0.1,
-        thinkingConfig: { thinkingBudget: 0 },
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            flashcards: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  answer: { type: Type.STRING }
-                },
-                required: ["question", "answer"]
-              }
-            },
-            quiz: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctAnswer: { type: Type.STRING },
-                  explanation: { type: Type.STRING },
-                  category: { type: Type.STRING }
-                },
-                required: ["question", "options", "correctAnswer", "explanation", "category"]
-              }
-            },
-            test: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctAnswer: { type: Type.STRING },
-                  explanation: { type: Type.STRING },
-                  category: { type: Type.STRING }
-                },
-                required: ["question", "options", "correctAnswer", "explanation", "category"]
-              }
-            },
-            mindmap: {
-              type: Type.OBJECT,
-              properties: {
-                label: { type: Type.STRING },
-                content: { type: Type.STRING },
-                children: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      label: { type: Type.STRING },
-                      content: { type: Type.STRING },
-                      children: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, content: {type: Type.STRING} }, required: ["label", "content"] } }
-                    },
-                    required: ["label", "content"]
-                  }
-                }
-              },
-              required: ["label", "content"]
-            }
-          },
-          required: ["flashcards", "quiz", "test", "mindmap"]
-        }
-      }
-    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(t || "Generation failed.");
+    }
 
-    const textOutput = response.text;
-    if (!textOutput) throw new Error("AI returned empty synthesis.");
-    const data = JSON.parse(textOutput);
-    
-    return {
-      flashcards: (data.flashcards || []).map((c: any, i: number) => ({ ...c, id: `fc-${i}-${Date.now()}` })),
-      quiz: (data.quiz || []).map((q: any, i: number) => ({ ...q, id: `quiz-${i}-${Date.now()}` })),
-      test: (data.test || []).map((t: any, i: number) => ({ ...t, id: `test-${i}-${Date.now()}` })),
-      mindmap: data.mindmap || { label: "Main Topic", content: "Main topic summary", children: [] }
-    };
+    return (await res.json()) as StudySet;
   });
 };
 
-export const generateChatResponse = async (messages: ChatMessage[], topicContext?: string): Promise<string> => {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const modelName = 'gemini-3-flash-preview';
-
-    const systemInstruction = `You are StuddiChat, the brilliant AI tutor for StuddiSmart. 
-    Your goal is to help users understand complex academic topics.
-    
-    MANDATORY FORMATTING:
-    - Use highly structured answers with clear sections.
-    - ALWAYS use numbered lists (1. , 2. , 3. ) for sequential steps, logic, or points.
-    - Use bullet points for features, facts, or attributes.
-    - Use **bold text** for core concepts and critical terms.
-    - Maintain strict chronological order in historical or process-based explanations.
-    - Keep answers concise, professional, and encouraging.
-    
-    ${topicContext ? `The current study topic is: ${topicContext}` : 'No specific topic selected yet.'}
-    If the user asks about something unrelated to learning, gently guide them back to their studies.`;
-
-    const contents = messages.map(m => ({
-      role: m.role,
-      parts: [{ text: m.text }]
-    }));
-
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-        topP: 0.9,
-        maxOutputTokens: 800,
-      }
-    });
-
-    return response.text || "I'm sorry, I couldn't synthesize a response.";
-  });
+/**
+ * These 3 still call Gemini directly in your old version.
+ * Since we moved keys to the backend, they should be converted
+ * to backend endpoints too next.
+ *
+ * For now, keep them as placeholders so your build doesn't break.
+ * We’ll add /chat, /insights, /tts functions next.
+ */
+export const generateChatResponse = async (
+  _messages: ChatMessage[],
+  _topicContext?: string
+): Promise<string> => {
+  throw new Error("Chat endpoint not connected yet. Next step: add a Firebase Function for chat.");
 };
 
-export const fetchTutorInsights = async (question: string, answer: string): Promise<TutorExplanation> => {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const systemInstruction = `You are a world-class academic tutor.
-    Explain simply, provide real-world examples, list key takeaways, and a knowledge check.
-    MANDATORY: 'quickCheck' MUST contain exactly 5 questions/answers.
-    Output valid JSON only.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: { parts: [{ text: `Topic:\nQ: ${question}\nA: ${answer}` }] },
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 }, 
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            simpleExplanation: { type: Type.STRING },
-            realWorldExample: { type: Type.STRING },
-            keyCommands: { type: Type.ARRAY, items: { type: Type.STRING } },
-            commonMistakes: { type: Type.ARRAY, items: { type: Type.STRING } },
-            quickCheck: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  answer: { type: Type.STRING }
-                },
-                required: ["question", "answer"]
-              }
-            }
-          },
-          required: ["simpleExplanation", "realWorldExample", "keyCommands", "commonMistakes", "quickCheck"]
-        }
-      }
-    });
-    const textOutput = response.text;
-    if (!textOutput) throw new Error("AI returned empty insights.");
-    return JSON.parse(textOutput);
-  });
+export const fetchTutorInsights = async (
+  _question: string,
+  _answer: string
+): Promise<TutorExplanation> => {
+  throw new Error("Insights endpoint not connected yet. Next step: add a Firebase Function for insights.");
 };
 
-export const generateAudio = async (text: string): Promise<string> => {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Speak clearly: ${text}` }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
-        },
-      },
-    });
-
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("Audio generation failed.");
-    return base64Audio;
-  });
+export const generateAudio = async (_text: string): Promise<string> => {
+  throw new Error("TTS endpoint not connected yet. Next step: add a Firebase Function for audio.");
 };

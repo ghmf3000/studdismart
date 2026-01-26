@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Flashcard, QuizQuestion, MindmapNode, TutorExplanation, StudySet } from "../types";
+import { Flashcard, QuizQuestion, MindmapNode, TutorExplanation, StudySet, ChatMessage } from "../types";
 
 export interface GenerationInput {
   text?: string;
@@ -188,6 +188,45 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
       test: (data.test || []).map((t: any, i: number) => ({ ...t, id: `test-${i}-${Date.now()}` })),
       mindmap: data.mindmap || { label: "Main Topic", content: "Main topic summary", children: [] }
     };
+  });
+};
+
+export const generateChatResponse = async (messages: ChatMessage[], topicContext?: string): Promise<string> => {
+  return withRetry(async () => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const modelName = 'gemini-3-flash-preview';
+
+    const systemInstruction = `You are StuddiChat, the brilliant AI tutor for StuddiSmart. 
+    Your goal is to help users understand complex academic topics.
+    
+    MANDATORY FORMATTING:
+    - Use highly structured answers with clear sections.
+    - ALWAYS use numbered lists (1. , 2. , 3. ) for sequential steps, logic, or points.
+    - Use bullet points for features, facts, or attributes.
+    - Use **bold text** for core concepts and critical terms.
+    - Maintain strict chronological order in historical or process-based explanations.
+    - Keep answers concise, professional, and encouraging.
+    
+    ${topicContext ? `The current study topic is: ${topicContext}` : 'No specific topic selected yet.'}
+    If the user asks about something unrelated to learning, gently guide them back to their studies.`;
+
+    const contents = messages.map(m => ({
+      role: m.role,
+      parts: [{ text: m.text }]
+    }));
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents,
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+        topP: 0.9,
+        maxOutputTokens: 800,
+      }
+    });
+
+    return response.text || "I'm sorry, I couldn't synthesize a response.";
   });
 };
 

@@ -1,8 +1,8 @@
 import React, { Component, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/Button";
 import { FlashcardViewer } from "./components/FlashcardViewer";
-import { generateAudio, generateStudySet, QuotaExceededError } from "./services/geminiService";
-import { Flashcard, GenerationStep, MindmapNode, QuizQuestion, User, StudySet } from "./types";
+import { generateAudio, generateStudySet, generateChatResponse, QuotaExceededError } from "./services/geminiService";
+import { Flashcard, GenerationStep, MindmapNode, QuizQuestion, User, StudySet, ChatMessage } from "./types";
 
 // ✅ IMPORTANT: keep this exact import so Firebase Auth is registered via firebase/auth
 import { auth, googleProvider } from "./services/firebase";
@@ -220,7 +220,7 @@ const AppInner: React.FC = () => {
   const [testQuestions, setTestQuestions] = useState<QuizQuestion[]>([]);
   const [mindmap, setMindmap] = useState<MindmapNode | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"cards" | "quiz" | "test" | "mindmap">("cards");
+  const [activeTab, setActiveTab] = useState<"cards" | "quiz" | "test" | "mindmap" | "chat">("cards");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [quizIndex, setQuizIndex] = useState(0);
   const [testIndex, setTestIndex] = useState(0);
@@ -236,6 +236,16 @@ const AppInner: React.FC = () => {
   const [testStartTime, setTestStartTime] = useState<number | null>(null);
   const [testDuration, setTestDuration] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+
+  // StuddiChat Global State
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
+  const [freeChatCount, setFreeChatCount] = useState<number>(() => {
+    return parseInt(localStorage.getItem('studdichat_free_count') || '0');
+  });
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [profileNameInput, setProfileNameInput] = useState("");
@@ -328,6 +338,12 @@ const AppInner: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeTab, isTestSubmitted, testStartTime]);
 
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isChatLoading, isChatExpanded]);
+
   const toggleDarkMode = () => setIsDarkMode((v) => !v);
 
   const resetSession = () => {
@@ -346,6 +362,7 @@ const AppInner: React.FC = () => {
     setCurrentIndex(0);
     setQuizIndex(0);
     setTestIndex(0);
+    setChatMessages([]);
     setSelectedDoc(null);
     setStatus(GenerationStep.IDLE);
     setGenerationErrorMessage("");
@@ -481,6 +498,7 @@ const AppInner: React.FC = () => {
       setIsTestSubmitted(false);
       setTestStartTime(null);
       setElapsedTime(0);
+      setChatMessages([{ role: 'model', text: `Hello! I am StuddiChat. I've synthesized your materials on this topic. How can I help you master it today?`, timestamp: Date.now() }]);
       setStatus(GenerationStep.COMPLETED);
       setView("viewer");
       setSelectedDoc(null);
@@ -528,6 +546,56 @@ const AppInner: React.FC = () => {
       audioSourceRef.current = source;
       source.start(0);
     } catch { setPlayingId(null); }
+  };
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    if (user?.tier !== 'pro' && freeChatCount >= 5) {
+      const upgrade = confirm("StuddiChat Limit Reached (Free Tier). Would you like to Signup or Subscribe for unlimited academic interaction?");
+      if (upgrade) setView("pricing");
+      return;
+    }
+
+    const userMessage: ChatMessage = { role: 'user', text: chatInput, timestamp: Date.now() };
+    const updatedHistory = [...chatMessages, userMessage];
+    setChatMessages(updatedHistory);
+    setChatInput("");
+    setIsChatLoading(true);
+
+    try {
+      const response = await generateChatResponse(updatedHistory, input);
+      setChatMessages([...updatedHistory, { role: 'model', text: response, timestamp: Date.now() }]);
+      
+      if (user?.tier !== 'pro') {
+        const newCount = freeChatCount + 1;
+        setFreeChatCount(newCount);
+        localStorage.setItem('studdichat_free_count', newCount.toString());
+      }
+    } catch (err: any) {
+      console.error("Chat Error:", err);
+      setChatMessages([...updatedHistory, { role: 'model', text: "I'm experiencing a high load right now. Please try your question again in a moment.", timestamp: Date.now() }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleDownloadChat = () => {
+    if (chatMessages.length === 0) return;
+    const text = chatMessages.map(m => `[${new Date(m.timestamp).toLocaleTimeString()}] ${m.role === 'user' ? 'USER' : 'STUDDICHAT'}: ${m.text}`).join('\n\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `studdi-chat-history-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleNewChat = () => {
+    if (confirm("Are you sure you want to clear this conversation?")) {
+      setChatMessages([{ role: 'model', text: `Chat reset. How can I help you with your academic goals?`, timestamp: Date.now() }]);
+    }
   };
 
   const quizResults = useMemo(() => {
@@ -595,6 +663,7 @@ const AppInner: React.FC = () => {
     if (activeTab === 'quiz') return 'bg-blue-600 dark:bg-blue-500';
     if (activeTab === 'test') return 'bg-emerald-600 dark:bg-emerald-500';
     if (activeTab === 'mindmap') return 'bg-purple-600 dark:bg-purple-500';
+    if (activeTab === 'chat') return 'bg-slate-800 dark:bg-slate-700';
     return 'bg-slate-800 dark:bg-slate-100';
   }, [activeTab]);
 
@@ -783,10 +852,10 @@ const AppInner: React.FC = () => {
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 md:gap-4">
               <div className="flex bg-white dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200 dark:border-slate-700 w-full lg:max-w-2xl relative h-10 md:h-14">
                 <div className="absolute inset-1 pointer-events-none">
-                  <div className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out`} style={{ width: '25%', transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : activeTab === 'test' ? '200%' : '300%'})` }} />
+                  <div className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out`} style={{ width: '20%', transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : activeTab === 'test' ? '200%' : activeTab === 'mindmap' ? '300%' : '400%'})` }} />
                 </div>
-                {(["cards", "quiz", "test", "mindmap"] as const).map((tab) => (
-                  <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 text-[8px] md:text-[10px] font-black rounded-none relative z-10 uppercase tracking-widest ${activeTab === tab ? "text-white dark:text-slate-900" : "text-slate-400 hover:text-slate-600"}`}>{tab}</button>
+                {(["cards", "quiz", "test", "mindmap", "chat"] as const).map((tab) => (
+                  <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 text-[8px] md:text-[10px] font-black rounded-none relative z-10 uppercase tracking-widest ${activeTab === tab ? "text-white dark:text-slate-900" : "text-slate-400 hover:text-slate-600"}`}>{tab === 'chat' ? 'StuddiChat' : tab}</button>
                 ))}
               </div>
               <Button onClick={() => setView("home")} variant="secondary" className="h-10 md:h-14 px-6 md:px-8 rounded-none text-[10px] md:text-xs">Back to Console</Button>
@@ -1028,6 +1097,74 @@ const AppInner: React.FC = () => {
               )}
 
               {activeTab === "mindmap" && <div className="bg-white dark:bg-slate-800 p-6 md:p-12 border border-slate-200 dark:border-slate-700 overflow-x-auto border-t-4 border-t-purple-500">{mindmap ? <MindmapNodeView node={mindmap} /> : <div className="text-center py-20 font-black opacity-10 uppercase tracking-widest text-slate-900 dark:text-white">Graph Unavailable</div>}</div>}
+              
+              {activeTab === "chat" && (
+                <div className="max-w-4xl mx-auto h-[600px] flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl relative overflow-hidden">
+                  <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                       <div className="w-8 h-8 bg-red-600 flex items-center justify-center font-black">C</div>
+                       <div>
+                         <h3 className="text-sm font-black uppercase tracking-widest leading-none">StuddiChat AI</h3>
+                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter mt-1">Academic Support Agent</p>
+                       </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {user?.tier !== 'pro' && (
+                        <div className="text-[10px] font-black uppercase bg-red-600/20 text-red-400 px-3 py-1 border border-red-600/30">
+                          {5 - freeChatCount} interactions remaining
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 border-l border-white/10 pl-4">
+                        <button onClick={handleDownloadChat} title="Download History" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                        <button onClick={handleNewChat} title="New Chat" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg></button>
+                        <button onClick={() => setActiveTab('cards')} title="Collapse Workspace" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg></button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50 dark:bg-slate-900">
+                    {chatMessages.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                        <div className={`max-w-[85%] px-5 py-3 shadow-sm text-sm whitespace-pre-wrap ${msg.role === 'user' ? 'bg-red-600 text-white font-bold' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-medium leading-relaxed'}`}>
+                          {msg.text}
+                          <div className={`text-[8px] mt-1 opacity-50 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {isChatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 py-4 flex gap-1 items-center">
+                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" />
+                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
+                    <div className="flex gap-3">
+                      <input 
+                        type="text" 
+                        value={chatInput} 
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                        placeholder="Ask about concepts, definitions, or exam tips..."
+                        className="flex-1 bg-slate-100 dark:bg-slate-900 px-5 py-3 border border-slate-200 dark:border-slate-700 outline-none font-bold text-sm focus:border-red-500 transition-colors"
+                      />
+                      <Button 
+                        onClick={handleSendChat}
+                        disabled={!chatInput.trim() || isChatLoading}
+                        className="rounded-none h-auto px-8"
+                      >
+                        Ask
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1129,6 +1266,7 @@ const AppInner: React.FC = () => {
                 <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-500 flex-grow">
                   <li>• 10 Flashcards per unique topic</li>
                   <li>• 10 Quizzes per unique topic</li>
+                  <li>• 5 StuddiChat interactions</li>
                 </ul>
                 <Button variant="secondary" className="w-full cursor-default h-12" disabled>{user?.tier === 'free' ? 'Current Plan' : 'Free Tier'}</Button>
               </div>
@@ -1143,6 +1281,7 @@ const AppInner: React.FC = () => {
                 <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
                   <li>• Unlimited flashcards (up to 50/set)</li>
                   <li>• Unlimited quizzes (up to 30/set)</li>
+                  <li>• Unlimited StuddiChat interactions</li>
                   <li>• Full AI Synthesis access</li>
                 </ul>
                 <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Monthly'}</Button>
@@ -1183,6 +1322,79 @@ const AppInner: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* GLOBAL FLOATING StuddiChat */}
+      <div className={`fixed bottom-6 right-6 z-[1000] flex flex-col items-end transition-all duration-500 ease-in-out ${isChatExpanded ? 'w-[90vw] sm:w-[400px]' : 'w-auto'}`}>
+        {isChatExpanded ? (
+          <div className="w-full h-[500px] flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-[0_20px_50px_rgba(0,0,0,0.2)] rounded-none overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
+            {/* Header */}
+            <div className="bg-slate-900 px-6 py-4 flex items-center justify-between shrink-0">
+               <div className="flex items-center gap-2">
+                 <div className="w-7 h-7 bg-red-600 flex items-center justify-center text-white font-black text-xs">C</div>
+                 <h3 className="text-xs font-black uppercase text-white tracking-widest">Ask StuddiChat</h3>
+               </div>
+               <div className="flex items-center gap-2">
+                 <button onClick={handleDownloadChat} title="Download History" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                 <button onClick={handleNewChat} title="New Chat" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg></button>
+                 <button onClick={() => setIsChatExpanded(false)} title="Hide" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg></button>
+               </div>
+            </div>
+            {/* Messages */}
+            <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-900 custom-scrollbar">
+               {chatMessages.length === 0 && (
+                 <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
+                   <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-700 rounded-full flex items-center justify-center mb-4">
+                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                   </div>
+                   <p className="text-xs font-black uppercase tracking-widest">Awaiting academic prompt...</p>
+                 </div>
+               )}
+               {chatMessages.map((msg, i) => (
+                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                   <div className={`max-w-[85%] px-4 py-2.5 shadow-sm text-xs whitespace-pre-wrap ${msg.role === 'user' ? 'bg-red-600 text-white font-bold' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'}`}>
+                      {msg.text}
+                   </div>
+                 </div>
+               ))}
+               {isChatLoading && (
+                 <div className="flex justify-start">
+                   <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 flex gap-1 items-center">
+                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" />
+                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                   </div>
+                 </div>
+               )}
+            </div>
+            {/* Input */}
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+               <div className="flex gap-2">
+                 <input 
+                   type="text" 
+                   value={chatInput} 
+                   onChange={(e) => setChatInput(e.target.value)}
+                   onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                   placeholder="Ask anything..."
+                   className="flex-1 bg-slate-100 dark:bg-slate-900 px-4 py-2 border border-slate-200 dark:border-slate-700 outline-none text-xs font-bold focus:border-red-500"
+                 />
+                 <button onClick={handleSendChat} disabled={!chatInput.trim() || isChatLoading} className="bg-slate-900 text-white px-4 py-2 font-black text-[10px] uppercase hover:bg-slate-800 disabled:opacity-50">Send</button>
+               </div>
+               {user?.tier !== 'pro' && (
+                 <p className="text-[8px] font-black uppercase text-slate-400 mt-2 text-center tracking-widest">{5 - freeChatCount} free insights left</p>
+               )}
+            </div>
+          </div>
+        ) : (
+          <button 
+            onClick={() => setIsChatExpanded(true)}
+            className="flex items-center gap-3 px-6 py-4 bg-slate-900 text-white shadow-2xl hover:scale-105 active:scale-95 transition-all border border-slate-800 group"
+          >
+            <div className="w-6 h-6 bg-red-600 flex items-center justify-center font-black text-xs">C</div>
+            <span className="text-xs font-black uppercase tracking-[0.2em]">Ask StuddiChat</span>
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-1" />
+          </button>
+        )}
+      </div>
 
       {showAuthModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-sm animate-in fade-in duration-300">

@@ -47,6 +47,12 @@ export interface StudySet {
   mindmap: MindmapNode;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  timestamp: number;
+}
+
 // Fixed GenerationStep by using a type union of the constant values instead of an interface
 export const GenerationStep = {
   IDLE: 'IDLE',

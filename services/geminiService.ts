@@ -7,6 +7,9 @@ export interface GenerationInput {
     data: string;
     mimeType: string;
   };
+  flashcardCount?: number;
+  quizCount?: number;
+  isDifferentSet?: boolean;
 }
 
 export interface StudySet {
@@ -16,10 +19,10 @@ export interface StudySet {
 }
 
 /**
- * Robust retry utility to handle 429 Resource Exhausted errors.
+ * Robust retry utility to handle 429 (Quota) and 503 (Overloaded) errors.
  */
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> => {
-  let delay = 3000;
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> => {
+  let delay = 2000;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
@@ -28,23 +31,29 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
       const status = error?.status || error?.error?.status || "";
       const message = error?.message || error?.error?.message || "";
       
-      const isQuotaError = 
+      const isRetryable = 
         code === 429 || 
         code === '429' ||
+        code === 503 ||
+        code === '503' ||
         status === 'RESOURCE_EXHAUSTED' ||
+        status === 'UNAVAILABLE' ||
         message.toLowerCase().includes('429') ||
+        message.toLowerCase().includes('503') ||
         message.toLowerCase().includes('resource_exhausted') ||
+        message.toLowerCase().includes('overloaded') ||
+        message.toLowerCase().includes('unavailable') ||
         message.toLowerCase().includes('too many requests');
 
-      if (isQuotaError && i < maxRetries - 1) {
-        console.warn(`[StuddiSmart AI] Rate limit (429) hit. Backing off for ${delay}ms... (Attempt ${i + 1}/${maxRetries})`);
+      if (isRetryable && i < maxRetries - 1) {
+        console.warn(`[StuddiSmart AI] Service busy/limit hit. Retrying in ${delay}ms... (Attempt ${i + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        delay = delay * 2;
+        delay = delay * 2; // Exponential backoff
         continue;
       }
       
-      if (isQuotaError) {
-        throw new Error("Too many requests, please try again in a moment. Our AI engine is currently under high load.");
+      if (isRetryable) {
+        throw new Error("The AI engine is currently experiencing extremely high traffic. Please wait a few seconds and try again.");
       }
       
       throw error;
@@ -56,17 +65,21 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
 export const generateStudySet = async (input: GenerationInput): Promise<StudySet> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Switch to gemini-3-flash-preview for higher rate limits and faster response
     const model = 'gemini-3-flash-preview';
     
-    const prompt = `You are a world-class educational assistant. Generate a comprehensive study set based on the provided input (text, images, or documents like PDFs).
-    Analyze the material thoroughly. Extract all relevant educational concepts.
+    const fcCount = input.flashcardCount || 10;
+    const qCount = input.quizCount || 10;
+    const varietyPrompt = input.isDifferentSet 
+      ? "Provide a fresh perspective and different questions from any previous attempts. Avoid repeating common examples." 
+      : "Focus on the absolute most fundamental core concepts and definitions.";
+
+    const prompt = `You are a world-class educational assistant. Generate a comprehensive study set based on the provided input.
+    ${varietyPrompt}
     
     The study set must include:
-    1. Exactly 8 Flashcards: Focused on core definitions, formulas, or historical facts.
-    2. Exactly 5 Multiple Choice Questions: Testing comprehension with 4 distinct options and 1 correct answer.
+    1. Exactly ${fcCount} Flashcards.
+    2. Exactly ${qCount} Multiple Choice Questions: 4 options and 1 correct answer.
     3. A Mindmap: A hierarchical JSON structure summarizing the main topic and its key sub-branches. 
-       EACH node in the mindmap MUST include a 'label' (short title) AND 'content' (a 1-2 sentence explanation of that node).
 
     Strictly follow the provided JSON schema. Output valid JSON only.`;
 
@@ -86,7 +99,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
       contents: { parts },
       config: {
         responseMimeType: "application/json",
-        temperature: 0.1,
+        temperature: input.isDifferentSet ? 0.8 : 0.1,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -149,13 +162,12 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
       }
     });
 
-    let text = response.text || '{}';
-    text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-    
+    const text = response.text || '{}';
     const data = JSON.parse(text);
+    
     return {
-      flashcards: (data.flashcards || []).map((c: any, i: number) => ({ ...c, id: `fc-${i}` })),
-      quiz: (data.quiz || []).map((q: any, i: number) => ({ ...q, id: `q-${i}` })),
+      flashcards: (data.flashcards || []).map((c: any, i: number) => ({ ...c, id: `fc-${i}-${Date.now()}` })),
+      quiz: (data.quiz || []).map((q: any, i: number) => ({ ...q, id: `q-${i}-${Date.now()}` })),
       mindmap: data.mindmap || { label: "Main Topic", content: "Main topic summary", children: [] }
     };
   });
@@ -164,18 +176,11 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
 export const fetchTutorInsights = async (question: string, answer: string): Promise<TutorExplanation> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Switch to gemini-3-flash-preview for tutoring tasks to avoid quota issues
     const prompt = `You are a world-class educational tutor. Provide a deep-dive explanation for the following flashcard:
     Question: ${question}
     Answer: ${answer}
     
-    Return a detailed JSON object following the schema provided. 
-    Include:
-    - a simple explanation (summary),
-    - a real-world example,
-    - exactly 3 key takeaways (concise facts),
-    - exactly 2 common mistakes,
-    - exactly 4 to 5 Quick Check questions with short answers.`;
+    Return a detailed JSON object following the schema provided.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

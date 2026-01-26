@@ -233,7 +233,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
             <button 
               onClick={handleFetchTutor}
               disabled={isFetchingTutor}
-              className={`w-full py-5 font-black text-xs tracking-[0.3em] uppercase transition-all duration-300 border-t border-slate-800/50 flex items-center justify-center gap-3 group bg-slate-800 dark:bg-slate-700 text-red-400 hover:bg-slate-700 dark:hover:bg-slate-600 active:bg-slate-800 disabled:opacity-50`}
+              className={`w-full py-5 font-black text-xs tracking-[0.3em] uppercase transition-all duration-300 border-t border-slate-800/50 flex items-center justify-center gap-3 group bg-slate-800 dark:bg-slate-700 text-red-400 hover:bg-slate-700 dark:hover:bg-slate-600 active:bg-slate-800 disabled:opacity-50 animate-float`}
             >
               {isFetchingTutor ? (
                 <>
@@ -243,7 +243,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
               ) : (
                 <>
                   <svg className="w-4 h-4 group-hover:animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                  Tutor Insights
+                  Click here to get explanation
                 </>
               )}
             </button>

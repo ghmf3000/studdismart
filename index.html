@@ -49,12 +49,14 @@
         html, body { 
           height: 100%;
           font-family: 'Inter', sans-serif;
-          -webkit-tap-highlight-color: transparent;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
           overflow-x: hidden;
         }
 
         body {
-          background-color: #f3f4f6; /* Light grey */
+          background-color: #f3f4f6;
         }
         
         .dark body {

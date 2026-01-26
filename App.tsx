@@ -1,7 +1,7 @@
 import React, { Component, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/Button";
 import { FlashcardViewer } from "./components/FlashcardViewer";
-import { generateAudio, generateStudySet } from "./services/geminiService";
+import { generateAudio, generateStudySet, StudySet } from "./services/geminiService";
 import { Flashcard, GenerationStep, MindmapNode, QuizQuestion, User } from "./types";
 
 // ✅ IMPORTANT: keep this exact import so Firebase Auth is registered via firebase/auth
@@ -17,6 +17,16 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 
+/** ---------- Utils ---------- */
+const hashString = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash.toString();
+};
+
 /** ---------- Error Boundary (prevents blank screen) ---------- */
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -27,11 +37,14 @@ interface ErrorBoundaryState {
   error?: any;
 }
 
-// Added constructor and used React.Component to resolve prop inheritance issues
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState;
+  public props: ErrorBoundaryProps;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: undefined };
+    this.props = props;
   }
 
   static getDerivedStateFromError(error: any) {
@@ -86,33 +99,6 @@ const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean }> = ({
     {isPlaying ? "Playing" : "Listen"}
   </button>
 );
-
-const FAQItem: React.FC<{ question: string; answer: React.ReactNode }> = ({ question, answer }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="border-b border-slate-200 dark:border-slate-800 last:border-0 transition-colors">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-6 text-left group"
-      >
-        <span className={`text-sm md:text-base font-bold transition-colors ${isOpen ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-300 group-hover:text-red-500"}`}>
-          {question}
-        </span>
-        <div className={`shrink-0 w-8 h-8 rounded-none border flex items-center justify-center transition-all ${isOpen ? "bg-red-600 border-red-600 text-white rotate-45" : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 group-hover:border-red-500 group-hover:text-red-500"}`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-        </div>
-      </button>
-      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-96 pb-6 opacity-100" : "max-h-0 opacity-0"}`}>
-        <div className="text-sm md:text-base text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-          {answer}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
   node,
@@ -198,7 +184,6 @@ const AppInner: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup" | "verify">("signin");
   const [pendingEmail, setPendingEmail] = useState("");
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -216,6 +201,8 @@ const AppInner: React.FC = () => {
   });
 
   const [input, setInput] = useState("");
+  const [flashcardCount, setFlashcardCount] = useState(10);
+  const [quizCount, setQuizCount] = useState(10);
   const [status, setStatus] = useState<GenerationStep>(GenerationStep.IDLE);
   const [generationErrorMessage, setGenerationErrorMessage] = useState("");
 
@@ -328,14 +315,6 @@ const AppInner: React.FC = () => {
     setActiveTab("cards");
   };
 
-  const handleFirebaseError = (err: any) => {
-    console.error("Firebase Error:", err);
-    if (err?.code === 'auth/unauthorized-domain' || err?.message?.includes('unauthorized-domain')) {
-      return `Domain Authorization Error: The domain ${window.location.hostname} is not authorized in your Firebase Project. Please add it to Authentication -> Settings -> Authorized Domains in the Firebase Console.`;
-    }
-    return err?.message || "An unexpected error occurred during the authentication process.";
-  };
-
   const handleGoogleSignIn = async () => {
     setAuthError("");
     setIsAuthLoading(true);
@@ -343,7 +322,7 @@ const AppInner: React.FC = () => {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
-      setAuthError(handleFirebaseError(err));
+      setAuthError(err.message || "Sign-in failed.");
     } finally {
       setIsAuthLoading(false);
     }
@@ -355,7 +334,8 @@ const AppInner: React.FC = () => {
     try {
       if (authMode === "signin") {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        if (!userCredential.user.emailVerified) {
+        const isGoogle = userCredential.user.providerData.some(p => p.providerId === 'google.com');
+        if (!userCredential.user.emailVerified && !isGoogle) {
           setPendingEmail(userCredential.user.email || "");
           setAuthMode("verify");
           await signOut(auth);
@@ -373,7 +353,7 @@ const AppInner: React.FC = () => {
         await signOut(auth);
       }
     } catch (err: any) {
-      setAuthError(handleFirebaseError(err));
+      setAuthError(err.message || "Auth failed.");
     } finally {
       setIsAuthLoading(false);
     }
@@ -412,15 +392,41 @@ const AppInner: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (isDifferent = false) => {
     if (!input.trim() && !selectedDoc) return;
+
+    if (user?.tier !== 'pro') {
+      const contentKey = hashString(input + (selectedDoc?.name || ""));
+      const cachedSet = localStorage.getItem(`studywise_free_cache_${contentKey}`);
+      if (cachedSet) {
+        const parsed = JSON.parse(cachedSet) as StudySet;
+        setCards(parsed.flashcards);
+        setQuiz(parsed.quiz);
+        setMindmap(parsed.mindmap);
+        setView("viewer");
+        return;
+      }
+    }
+
     setStatus(GenerationStep.PROCESSING);
     setGenerationErrorMessage("");
     try {
+      const fcNum = flashcardCount || 10;
+      const qNum = quizCount || 10;
+
       const studySet = await generateStudySet({
         text: input,
         attachment: selectedDoc ? { data: selectedDoc.data, mimeType: selectedDoc.mimeType } : undefined,
+        flashcardCount: fcNum,
+        quizCount: qNum,
+        isDifferentSet: isDifferent 
       });
+
+      if (user?.tier !== 'pro') {
+        const contentKey = hashString(input + (selectedDoc?.name || ""));
+        localStorage.setItem(`studywise_free_cache_${contentKey}`, JSON.stringify(studySet));
+      }
+
       setCards(studySet.flashcards || []);
       setQuiz(studySet.quiz || []);
       setMindmap(studySet.mindmap || null);
@@ -455,8 +461,12 @@ const AppInner: React.FC = () => {
       for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
       const pcm16 = new Int16Array(bytes.buffer);
       const buffer = audioCtx.createBuffer(1, pcm16.length, 24000);
-      const channel = buffer.getChannelData(0);
-      for (let i = 0; i < pcm16.length; i++) channel[i] = pcm16[i] / 32768;
+      
+      const channelData = buffer.getChannelData(0);
+      for (let i = 0; i < pcm16.length; i++) {
+        channelData[i] = pcm16[i] / 32768.0;
+      }
+
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
       source.connect(audioCtx.destination);
@@ -485,7 +495,11 @@ const AppInner: React.FC = () => {
   }, [quiz, quizAnswers]);
 
   const handleUpgrade = (tier: 'pro') => {
-    if (!user) { setShowAuthModal(true); return; }
+    if (!user) { 
+      setAuthMode("signup");
+      setShowAuthModal(true); 
+      return; 
+    }
     localStorage.setItem(`studdismart_pro_${user.id}`, 'true');
     setUser(prev => prev ? { ...prev, tier: 'pro', isSubscribed: true } : prev);
     alert("Welcome to StuddiSmart Pro!");
@@ -504,11 +518,11 @@ const AppInner: React.FC = () => {
       <nav className="glass sticky top-0 z-[100] border-b border-slate-200 dark:border-slate-700/50">
         <div className="container-responsive h-16 md:h-20 flex items-center justify-between">
           <div className="flex items-center gap-4 md:gap-8">
-            <div className="flex items-center gap-2 cursor-pointer group shrink-0" onClick={resetSession}>
+            <div className="flex items-center gap-2 cursor-pointer group shrink-0" onClick={() => setView("home")}>
               <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-none flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
                 <span className="text-white font-black text-lg md:text-xl">S</span>
               </div>
-              <h1 className="text-lg md:text-xl font-black tracking-tighter hidden xs:block">StuddiSmart<span className="text-red-500">.</span></h1>
+              <h1 className="text-lg md:text-xl font-black tracking-tighter text-slate-900 dark:text-white flex items-center">StuddiSmart<span className="text-red-500">.</span></h1>
             </div>
             <div className="hidden md:flex items-center gap-6">
               <button onClick={() => setView("home")} className={`text-[10px] font-black uppercase tracking-widest ${view === 'home' ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>Home</button>
@@ -517,6 +531,15 @@ const AppInner: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
+            {cards.length > 0 && (
+              <button 
+                onClick={() => setView("viewer")}
+                className="flex items-center gap-2 px-3 py-1.5 md:px-5 md:py-2.5 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all hover:bg-red-100"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                Current Workspace
+              </button>
+            )}
             <button onClick={toggleDarkMode} className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-none bg-[#E7ECF3] dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm transition-colors hover:bg-slate-200">
                {isDarkMode ? "🌙" : "☀️"}
             </button>
@@ -524,10 +547,10 @@ const AppInner: React.FC = () => {
               <div className="group relative">
                 <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-none cursor-pointer">
                   <div className="w-6 h-6 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-none flex items-center justify-center text-xs font-black uppercase">{user.name?.[0]}</div>
-                  <span className="hidden sm:inline text-xs font-black">{user.name}</span>
+                  <span className="hidden sm:inline text-xs font-black text-slate-900 dark:text-white">{user.name}</span>
                 </div>
                 <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                  <button onClick={() => setView("profile")} className="w-full text-left px-5 py-2 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700">Identity Settings</button>
+                  <button onClick={() => setView("profile")} className="w-full text-left px-5 py-2 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">Identity Settings</button>
                   <button onClick={handleLogout} className="w-full text-left px-5 py-2 text-xs font-bold text-red-600 hover:bg-red-50">Logout</button>
                 </div>
               </div>
@@ -537,13 +560,13 @@ const AppInner: React.FC = () => {
                   onClick={() => { setAuthMode("signin"); setShowAuthModal(true); }}
                   className="px-6 h-10 md:h-11 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] md:text-xs font-black uppercase tracking-wider transition-all hover:bg-slate-50 hover:shadow-sm active:scale-95"
                 >
-                  Login
+                  LOGIN
                 </button>
                 <button 
                   onClick={() => { setAuthMode("signup"); setShowAuthModal(true); }}
                   className="px-6 h-10 md:h-11 rounded-full bg-red-600 dark:bg-red-500 text-white text-[10px] md:text-xs font-black uppercase tracking-wider transition-all hover:bg-red-700 shadow-lg shadow-red-500/20 active:scale-95"
                 >
-                  Signup
+                  SIGNUP
                 </button>
               </div>
             )}
@@ -557,8 +580,16 @@ const AppInner: React.FC = () => {
             <div className="text-center space-y-6">
               <div className="inline-flex px-4 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-700 rounded-none text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-red-100">✨ Automated Academic Synthesis</div>
               <h2 className="text-4xl md:text-6xl font-black tracking-tight leading-[0.95] text-slate-900 dark:text-white">Learn smarter, <br /> <span className="text-red-500">not harder.</span></h2>
-              <p className="text-slate-500 dark:text-slate-400 text-base md:text-xl font-medium max-w-xl mx-auto">Transform documents, PDFs, or research notes into high-performance study material instantly.</p>
+              <div className="space-y-4">
+                <p className="text-slate-600 dark:text-slate-300 text-base md:text-xl font-medium max-w-xl mx-auto">
+                  Transform documents, PDFs, or research notes into high-performance study material instantly.
+                </p>
+                <p className="text-slate-400 dark:text-slate-500 text-xs md:text-sm font-bold">
+                  Free tier: 10 fixed flashcards & quizzes per unique topic.
+                </p>
+              </div>
             </div>
+            
             <div className="bg-white dark:bg-slate-800 rounded-none p-2 md:p-3 shadow-xl border border-slate-200 dark:border-slate-700 relative overflow-hidden">
               {status === GenerationStep.PROCESSING && (
                 <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 z-50 flex flex-col items-center justify-center p-8 backdrop-blur-sm animate-in fade-in duration-300">
@@ -575,20 +606,54 @@ const AppInner: React.FC = () => {
               )}
               <div className="bg-slate-50 dark:bg-slate-900 rounded-none p-6 md:p-10 space-y-8">
                 <textarea className="w-full h-40 md:h-60 bg-transparent outline-none resize-none text-lg md:text-2xl font-bold placeholder:text-slate-300 text-slate-900 dark:text-slate-100" placeholder="Type your topic here or upload documents..." value={input} onChange={(e) => setInput(e.target.value)} />
+                
+                {user?.tier === 'pro' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-6 border-t border-slate-200 dark:border-slate-800">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Flashcard Count</label>
+                        <span className="text-xs font-black text-red-500">{flashcardCount}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="5" 
+                        max="50" 
+                        step="5"
+                        value={flashcardCount} 
+                        onChange={(e) => setFlashcardCount(parseInt(e.target.value))}
+                        className="w-full accent-red-600"
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Quiz Count</label>
+                        <span className="text-xs font-black text-red-500">{quizCount}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="3" 
+                        max="30" 
+                        step="3"
+                        value={quizCount} 
+                        onChange={(e) => setQuizCount(parseInt(e.target.value))}
+                        className="w-full accent-red-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {selectedDoc && <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 border border-red-500/20"><span>{selectedDoc.name}</span><button onClick={() => setSelectedDoc(null)}>✕</button></div>}
+                
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 pt-8 border-t border-slate-200">
                   <Button variant="secondary" className="h-14 px-8 rounded-none" onClick={() => fileInputRef.current?.click()}>Upload</Button>
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,text/plain" onChange={handleFileChange} />
-                  <Button className="flex-1 h-14 text-lg rounded-none" onClick={handleGenerate}>Generate Study Set</Button>
+                  <div className="flex flex-col sm:flex-row flex-1 gap-3">
+                    <Button className="flex-1 h-14 text-lg rounded-none" onClick={() => handleGenerate(false)}>Generate Study Set</Button>
+                    {user?.tier === 'pro' && cards.length > 0 && (
+                      <Button variant="outline" className="flex-1 h-14 text-xs rounded-none" onClick={() => handleGenerate(true)}>Generate Different Set</Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="pt-20 space-y-12">
-              <h3 className="text-3xl font-black text-center text-slate-900 dark:text-white">Frequently Asked Questions</h3>
-              <div className="max-w-3xl mx-auto bg-white dark:bg-slate-800/50 border border-slate-200 p-4 md:p-8">
-                <FAQItem question="What can I upload?" answer="You can upload PDFs, images of strategy notes, or paste text directly. Our AI analyzes these to generate study material." />
-                <FAQItem question="Is StuddiSmart free?" answer="We offer a robust free tier for casual learners, and a Pro plan for heavy synthesis needs." />
-                <FAQItem question="How accurate is the AI?" answer="Our synthesis is highly accurate but should always be reviewed alongside your primary source material." />
               </div>
             </div>
           </div>
@@ -597,7 +662,7 @@ const AppInner: React.FC = () => {
         {view === "viewer" && (
           <div className="max-w-5xl mx-auto space-y-8 animate-content">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-              <div className="flex bg-white dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200 w-full lg:max-w-lg relative h-12 md:h-14">
+              <div className="flex bg-white dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200 dark:border-slate-700 w-full lg:max-w-lg relative h-12 md:h-14">
                 <div className="absolute inset-1 pointer-events-none">
                   <div className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out`} style={{ width: '33.33%', transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : '200%'})` }} />
                 </div>
@@ -605,7 +670,7 @@ const AppInner: React.FC = () => {
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 text-[10px] font-black rounded-none relative z-10 uppercase tracking-widest ${activeTab === tab ? "text-white dark:text-slate-900" : "text-slate-400 hover:text-slate-600"}`}>{tab}</button>
                 ))}
               </div>
-              <Button onClick={resetSession} variant="secondary" className="h-12 md:h-14 px-8 rounded-none text-xs">Reset Workspace</Button>
+              <Button onClick={() => setView("home")} variant="secondary" className="h-12 md:h-14 px-8 rounded-none text-xs">Back to Console</Button>
             </div>
             <div className="min-h-[450px]">
               {activeTab === "cards" && <FlashcardViewer card={cards[currentIndex]} index={currentIndex} total={cards.length} onPrev={() => setCurrentIndex((p) => Math.max(0, p - 1))} onNext={() => setCurrentIndex((p) => Math.min(cards.length - 1, p + 1))} />}
@@ -613,63 +678,19 @@ const AppInner: React.FC = () => {
                 <div className="max-w-2xl mx-auto">
                   {isQuizSubmitted ? (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                      <div className="bg-white dark:bg-slate-800 p-8 md:p-12 border border-slate-200 shadow-xl border-t-8 border-t-red-600 space-y-10">
+                      <div className="bg-white dark:bg-slate-800 p-8 md:p-12 border border-slate-200 dark:border-slate-700 shadow-xl border-t-8 border-t-red-600 space-y-10">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-8 pb-10 border-b border-slate-100 dark:border-slate-700">
                           <div className="text-center md:text-left space-y-2">
                              <div className="text-[10px] font-black uppercase tracking-[0.4em] text-red-500">Synthesis Score</div>
                              <h3 className="text-5xl md:text-6xl font-black text-slate-900 dark:text-white leading-none">{quizResults.percentage}%</h3>
                              <p className="text-slate-500 dark:text-slate-400 font-bold">Accuracy Rating Verified</p>
                           </div>
-                          <div className="flex gap-4">
-                            <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-4 min-w-[100px] text-center">
-                              <div className="text-[8px] font-black uppercase text-emerald-600 mb-1">Correct</div>
-                              <div className="text-xl font-black text-emerald-700 dark:text-emerald-400">{quizResults.correctCount}</div>
-                            </div>
-                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 p-4 min-w-[100px] text-center">
-                              <div className="text-[8px] font-black uppercase text-red-600 mb-1">Incorrect</div>
-                              <div className="text-xl font-black text-red-700 dark:text-red-400">{quizResults.total - quizResults.correctCount}</div>
-                            </div>
-                          </div>
                         </div>
-
-                        <div className="space-y-6">
-                           <h4 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Detailed Analytics</h4>
-                           <div className="space-y-4">
-                             {quiz.map((q, i) => {
-                               const isCorrect = quizAnswers[q.id] === q.correctAnswer;
-                               return (
-                                 <div key={q.id} className={`p-6 border rounded-none transition-all ${isCorrect ? 'border-emerald-100 dark:border-emerald-900/20 bg-emerald-50/20 dark:bg-emerald-900/5' : 'border-red-100 dark:border-red-900/20 bg-red-50/20 dark:bg-red-900/5'}`}>
-                                    <div className="flex items-start gap-4">
-                                      <div className={`shrink-0 w-8 h-8 rounded-none flex items-center justify-center text-xs font-black ${isCorrect ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                                        {i + 1}
-                                      </div>
-                                      <div className="space-y-3">
-                                        <p className="font-bold text-slate-800 dark:text-slate-200">{q.question}</p>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
-                                          <div className="space-y-1">
-                                            <span className="uppercase text-[8px] font-black text-slate-400">Your Response</span>
-                                            <p className={`${isCorrect ? 'text-emerald-600' : 'text-red-600'} font-bold`}>{quizAnswers[q.id]}</p>
-                                          </div>
-                                          {!isCorrect && (
-                                            <div className="space-y-1">
-                                              <span className="uppercase text-[8px] font-black text-slate-400">Correct Alignment</span>
-                                              <p className="text-emerald-600 font-bold">{q.correctAnswer}</p>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                 </div>
-                               );
-                             })}
-                           </div>
-                        </div>
-
                         <Button className="w-full h-14 bg-red-600 hover:bg-red-700" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Reset Checkpoint</Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-white dark:bg-slate-800 p-6 md:p-8 border border-slate-200 shadow-xl border-t-4 border-t-blue-500 space-y-8">
+                    <div className="bg-white dark:bg-slate-800 p-6 md:p-8 border border-slate-200 dark:border-slate-700 shadow-xl border-t-4 border-t-blue-500 space-y-8">
                       <div className="text-center space-y-4">
                         <div className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em]">Question {quizIndex + 1} of {quiz.length}</div>
                         <h3 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white">{quiz[quizIndex]?.question}</h3>
@@ -677,7 +698,7 @@ const AppInner: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-1 gap-2">
                         {quiz[quizIndex]?.options.map((opt, i) => (
-                          <button key={i} onClick={() => setQuizAnswers((p) => ({ ...p, [quiz[quizIndex].id]: opt }))} className={`p-4 text-left border font-bold transition-all text-sm ${quizAnswers[quiz[quizIndex].id] === opt ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700" : "border-slate-200 hover:border-slate-300"}`}>
+                          <button key={i} onClick={() => setQuizAnswers((p) => ({ ...p, [quiz[quizIndex].id]: opt }))} className={`p-4 text-left border font-bold transition-all text-sm ${quizAnswers[quiz[quizIndex].id] === opt ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"}`}>
                             {String.fromCharCode(65 + i)}. {opt}
                           </button>
                         ))}
@@ -694,112 +715,147 @@ const AppInner: React.FC = () => {
                   )}
                 </div>
               )}
-              {activeTab === "mindmap" && <div className="bg-white dark:bg-slate-800 p-8 md:p-12 border border-slate-200 overflow-x-auto border-t-4 border-t-purple-500">{mindmap ? <MindmapNodeView node={mindmap} /> : <div className="text-center py-20 font-black opacity-10 uppercase tracking-widest">Graph Unavailable</div>}</div>}
+              {activeTab === "mindmap" && <div className="bg-white dark:bg-slate-800 p-8 md:p-12 border border-slate-200 dark:border-slate-700 overflow-x-auto border-t-4 border-t-purple-500">{mindmap ? <MindmapNodeView node={mindmap} /> : <div className="text-center py-20 font-black opacity-10 uppercase tracking-widest text-slate-900 dark:text-white">Graph Unavailable</div>}</div>}
+            </div>
+          </div>
+        )}
+
+        {view === "about" && (
+          <div className="max-w-5xl mx-auto py-10 space-y-12 animate-content">
+            <div className="text-center space-y-4">
+              <h2 className="text-5xl md:text-6xl font-black text-[#1a1f2e] dark:text-white leading-[1.1]">About StuddiSmart</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-lg md:text-xl font-medium max-w-3xl mx-auto">
+                StuddiSmart is an AI-powered learning platform designed to help students and lifelong learners study smarter—not longer.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 p-10 md:p-16 shadow-xl border border-slate-100 dark:border-slate-700 space-y-12">
+              <p className="text-slate-600 dark:text-slate-300 text-lg font-medium">
+                With StuddiSmart, you can upload your PDFs, notes, or images and instantly transform them into:
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                <div className="space-y-4">
+                  <div className="w-12 h-12 bg-[#c2211d] flex items-center justify-center text-white font-black text-xl">FC</div>
+                  <h3 className="text-lg font-black text-[#1a1f2e] dark:text-white uppercase tracking-tight">Flashcards</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">For quick and effective memorization.</p>
+                </div>
+                <div className="space-y-4">
+                  <div className="w-12 h-12 bg-[#2b64e0] flex items-center justify-center text-white font-black text-xl">QZ</div>
+                  <h3 className="text-lg font-black text-[#1a1f2e] dark:text-white uppercase tracking-tight">Quizzes</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">To test your understanding and track progress.</p>
+                </div>
+                <div className="space-y-4">
+                  <div className="w-12 h-12 bg-[#9c27b0] flex items-center justify-center text-white font-black text-xl">MM</div>
+                  <h3 className="text-lg font-black text-[#1a1f2e] dark:text-white uppercase tracking-tight">Mindmaps</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">To visualize concepts and connect ideas.</p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-slate-600 dark:text-slate-300 text-lg leading-relaxed max-w-4xl mx-auto">
+              We built StuddiSmart for people who want clarity, speed, and confidence in their learning process. Instead of rereading notes or feeling overwhelmed, StuddiSmart helps you actively engage with your material and retain what matters most.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-16 pt-10">
+              <div className="space-y-6">
+                <h3 className="text-2xl font-black text-[#c2211d] dark:text-red-500">Our Mission</h3>
+                <p className="text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                  To make studying more efficient, intuitive, and accessible for everyone—so learning feels less stressful and more empowering.
+                </p>
+              </div>
+              <div className="space-y-6">
+                <h3 className="text-2xl font-black text-[#1a1f2e] dark:text-white">Who StuddiSmart Is For</h3>
+                <ul className="space-y-3 text-slate-600 dark:text-slate-400 font-medium">
+                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0" /> Students preparing for exams or finals</li>
+                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0" /> Professionals studying for certifications</li>
+                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0" /> Anyone who wants a smarter way to learn and retain information</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="bg-[#121826] text-white p-12 md:p-16 relative overflow-hidden">
+               <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#c2211d]"></div>
+               <div className="space-y-12">
+                 <h3 className="text-3xl font-black">Our Approach</h3>
+                 <div className="space-y-8">
+                    <div className="flex gap-6 items-start">
+                       <span className="text-2xl font-black text-[#c2211d]">01</span>
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Adaptive Intelligence</p>
+                          <p className="text-lg font-bold">AI-powered insights that adapt to your content</p>
+                       </div>
+                    </div>
+                    <div className="flex gap-6 items-start">
+                       <span className="text-2xl font-black text-[#c2211d]">02</span>
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Clean UX</p>
+                          <p className="text-lg font-bold">Clean, distraction-free design that keeps you focused</p>
+                       </div>
+                    </div>
+                    <div className="flex gap-6 items-start">
+                       <span className="text-2xl font-black text-[#c2211d]">03</span>
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Security First</p>
+                          <p className="text-lg font-bold">Privacy-minded technology built with modern security practices</p>
+                       </div>
+                    </div>
+                 </div>
+               </div>
+            </div>
+
+            <div className="text-center space-y-12 py-10">
+               <p className="text-slate-500 dark:text-slate-400 italic text-xl font-medium max-w-2xl mx-auto leading-relaxed">
+                 "At StuddiSmart, we believe learning works best when it's active, visual, and personalized. Our goal is to help you understand more, remember longer, and succeed with confidence."
+               </p>
+
+               <div className="max-w-md mx-auto bg-white dark:bg-slate-800 shadow-2xl p-8 border border-slate-100 dark:border-slate-700">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white mb-2 flex items-center justify-center gap-2">
+                    <span role="img" aria-label="mail">📩</span> Questions or feedback?
+                  </p>
+                  <p className="text-lg font-medium text-slate-700 dark:text-slate-300">
+                    Contact us at <a href="mailto:support@studdismart.com" className="text-[#c2211d] font-black underline decoration-red-500/30 hover:decoration-red-500 transition-all">support@studdismart.com</a>
+                  </p>
+               </div>
             </div>
           </div>
         )}
 
         {view === "pricing" && (
           <div className="max-w-4xl mx-auto py-10 space-y-12 animate-content">
-            <h2 className="text-4xl font-black text-center">Select Synthesis Plan</h2>
+            <h2 className="text-4xl font-black text-center text-slate-900 dark:text-white">Select Synthesis Plan</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-white dark:bg-slate-800 border p-8 space-y-8"><h3 className="text-xl font-black">Free Scholar</h3><div className="text-4xl font-black">$0</div><Button variant="secondary" className="w-full" onClick={() => setView("home")}>Current Plan</Button></div>
-              <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-8 space-y-8"><h3 className="text-xl font-black">Pro Scholar</h3><div className="text-4xl font-black">$19</div><Button className="w-full" onClick={() => handleUpgrade('pro')}>Upgrade</Button></div>
-            </div>
-          </div>
-        )}
-
-        {view === "about" && (
-          <div className="max-w-4xl mx-auto space-y-12 py-10 animate-content">
-            <div className="text-center space-y-6">
-              <div className="inline-flex px-4 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-700 rounded-none text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-red-100">Genesis & Mission</div>
-              <h2 className="text-4xl md:text-5xl font-black tracking-tight leading-[0.95] text-slate-900 dark:text-white">About StuddiSmart</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-base md:text-xl font-medium max-w-2xl mx-auto">
-                StuddiSmart is an AI-powered learning platform designed to help students and lifelong learners study smarter—not longer.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-800 p-8 md:p-12 border border-slate-200 dark:border-slate-700 space-y-8">
-              <p className="text-slate-600 dark:text-slate-300 font-medium">With StuddiSmart, you can upload your PDFs, notes, or images and instantly transform them into:</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-3">
-                  <div className="w-12 h-12 bg-red-600 rounded-none flex items-center justify-center text-white font-black">FC</div>
-                  <h4 className="text-lg font-black uppercase">Flashcards</h4>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">For quick and effective memorization.</p>
-                </div>
-                <div className="space-y-3">
-                  <div className="w-12 h-12 bg-blue-600 rounded-none flex items-center justify-center text-white font-black">QZ</div>
-                  <h4 className="text-lg font-black uppercase">Quizzes</h4>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">To test your understanding and track progress.</p>
-                </div>
-                <div className="space-y-3">
-                  <div className="w-12 h-12 bg-purple-600 rounded-none flex items-center justify-center text-white font-black">MM</div>
-                  <h4 className="text-lg font-black uppercase">Mindmaps</h4>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">To visualize concepts and connect ideas.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <p className="text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                We built StuddiSmart for people who want clarity, speed, and confidence in their learning process. Instead of rereading notes or feeling overwhelmed, StuddiSmart helps you actively engage with your material and retain what matters most.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              <div className="space-y-4">
-                <h3 className="text-2xl font-black text-red-600">Our Mission</h3>
-                <p className="text-slate-600 dark:text-slate-400 font-medium">To make studying more efficient, intuitive, and accessible for everyone—so learning feels less stressful and more empowering.</p>
-              </div>
-              <div className="space-y-4">
-                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Who StuddiSmart Is For</h3>
-                <ul className="space-y-2 text-slate-600 dark:text-slate-400 font-medium list-disc pl-5">
-                  <li>Students preparing for exams or finals</li>
-                  <li>Professionals studying for certifications</li>
-                  <li>Anyone who wants a smarter way to learn and retain information</li>
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 space-y-8">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">Free Scholar</h3>
+                <div className="text-4xl font-black text-slate-900 dark:text-white">$0</div>
+                <ul className="space-y-3 text-sm font-medium text-slate-500">
+                  <li>• 10 Flashcards per unique topic</li>
+                  <li>• 10 Quizzes per unique topic</li>
                 </ul>
+                <Button variant="secondary" className="w-full cursor-default" disabled>{user?.tier === 'free' ? 'Current Plan' : 'Free Tier'}</Button>
               </div>
-            </div>
-
-            <div className="bg-slate-900 text-white p-10 md:p-12 space-y-6 border-l-8 border-red-500">
-               <h3 className="text-2xl font-black">Our Approach</h3>
-               <div className="grid grid-cols-1 gap-4">
-                 <div className="flex gap-4">
-                   <span className="text-red-400 font-black">01</span>
-                   <p><span className="font-black uppercase tracking-widest text-[10px] block text-slate-500 mb-1">Adaptive Intelligence</span> AI-powered insights that adapt to your content</p>
-                 </div>
-                 <div className="flex gap-4">
-                   <span className="text-red-400 font-black">02</span>
-                   <p><span className="font-black uppercase tracking-widest text-[10px] block text-slate-500 mb-1">Clean UX</span> Clean, distraction-free design that keeps you focused</p>
-                 </div>
-                 <div className="flex gap-4">
-                   <span className="text-red-400 font-black">03</span>
-                   <p><span className="font-black uppercase tracking-widest text-[10px] block text-slate-500 mb-1">Security First</span> Privacy-minded technology built with modern security practices</p>
-                 </div>
-               </div>
-            </div>
-
-            <div className="text-center py-10 border-t border-slate-200 dark:border-slate-800 space-y-8">
-               <p className="text-slate-600 dark:text-slate-400 font-medium max-w-2xl mx-auto italic">
-                 "At StuddiSmart, we believe learning works best when it’s active, visual, and personalized. Our goal is to help you understand more, remember longer, and succeed with confidence."
-               </p>
-               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 inline-block shadow-xl">
-                 <h4 className="font-black mb-2 uppercase tracking-widest text-xs">📩 Questions or feedback?</h4>
-                 <p className="text-lg font-bold">Contact us at <a href="mailto:support@studdismart.com" className="text-red-600 hover:underline">support@studdismart.com</a></p>
-               </div>
+              <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-8 space-y-8 shadow-xl scale-105">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">Pro Scholar</h3>
+                <div className="text-4xl font-black text-slate-900 dark:text-white">$19</div>
+                <ul className="space-y-3 text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <li>• Unlimited flashcards (up to 50/set)</li>
+                  <li>• Unlimited quizzes (up to 30/set)</li>
+                </ul>
+                <Button className="w-full" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Upgrade to Pro'}</Button>
+              </div>
             </div>
           </div>
         )}
 
         {view === "profile" && user && (
           <div className="max-w-xl mx-auto animate-content">
-            <div className="bg-white dark:bg-slate-800 p-10 md:p-14 border border-slate-200 shadow-xl space-y-10 border-t-4 border-t-red-500">
+            <div className="bg-white dark:bg-slate-800 p-10 md:p-14 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 border-t-4 border-t-red-500">
               <div className="text-center space-y-6">
                 <div className="w-20 h-20 bg-red-600 text-white rounded-none flex items-center justify-center text-3xl font-black mx-auto">{user.name?.[0]}</div>
-                <h2 className="text-2xl font-black">{user.name}</h2>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{user.name}</h2>
               </div>
               <div className="space-y-6">
-                <input type="text" value={profileNameInput} onChange={(e) => setProfileNameInput(e.target.value)} className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 outline-none font-bold" />
+                <input type="text" value={profileNameInput} onChange={(e) => setProfileNameInput(e.target.value)} className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 outline-none font-bold text-slate-900 dark:text-white" />
                 <Button className="w-full h-14" onClick={handleUpdateProfile} isLoading={isUpdatingProfile}>Update Identity</Button>
               </div>
             </div>
@@ -809,100 +865,112 @@ const AppInner: React.FC = () => {
 
       {showAuthModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md p-10 space-y-8 border border-slate-200 relative animate-in zoom-in-95 rounded-none shadow-2xl">
-            <button onClick={() => setShowAuthModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-600 transition-colors">✕</button>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-md p-8 pt-6 space-y-6 border border-slate-200 dark:border-slate-700 relative rounded-none shadow-2xl overflow-y-auto max-h-[95vh]">
+            <button onClick={() => setShowAuthModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors z-10">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
             
+            {authMode !== "verify" && (
+              <div className="bg-slate-50 dark:bg-slate-900 p-1 rounded-none border border-slate-200 dark:border-slate-700 flex">
+                <button 
+                  onClick={() => setAuthMode('signin')} 
+                  className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${authMode === 'signin' ? 'bg-white dark:bg-slate-800 text-red-600 shadow-sm border border-slate-100 dark:border-slate-700' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  LOGIN
+                </button>
+                <button 
+                  onClick={() => setAuthMode('signup')} 
+                  className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${authMode === 'signup' ? 'bg-white dark:bg-slate-800 text-red-600 shadow-sm border border-slate-100 dark:border-slate-700' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  SIGNUP
+                </button>
+              </div>
+            )}
+
+            <div className="text-center space-y-2 pt-2">
+              <h3 className="text-3xl font-black tracking-tight text-[#1a1f2e] dark:text-white leading-none">
+                {authMode === "verify" ? "Verify Email" : authMode === "signin" ? "Unlock Terminal" : "Register Identity"}
+              </h3>
+              <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-400">
+                {authMode === "signin" ? "INITIALIZE SECURE PROTOCOL" : "JOIN THE LEARNING MATRIX"}
+              </p>
+            </div>
+
             {authMode === "verify" ? (
-              <div className="text-center space-y-6 py-6">
-                <div className="w-16 h-16 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-none flex items-center justify-center mx-auto text-3xl">📧</div>
-                <h3 className="text-xl font-black">Confirm Identity</h3>
-                <p className="text-slate-500 text-xs">A synthesis link has been transmitted to <span className="font-bold text-red-600">{pendingEmail}</span>. Confirm to initialize access.</p>
-                <Button className="w-full h-12" onClick={() => setAuthMode("signin")}>Back to Auth</Button>
+              <div className="space-y-6 text-center">
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Verification protocol sent to <span className="text-red-600 font-bold">{pendingEmail}</span>. Please authorize via your inbox.
+                </p>
+                <Button className="w-full h-14" onClick={() => setAuthMode("signin")}>Back to Portal</Button>
               </div>
             ) : (
-              <>
-                <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-none border border-slate-200 dark:border-slate-700 relative h-12">
-                  <div 
-                    className="absolute inset-1 w-[calc(50%-4px)] h-[calc(100%-8px)] bg-white dark:bg-slate-800 shadow-sm transition-transform duration-300 ease-out"
-                    style={{ transform: `translateX(${authMode === 'signin' ? '0' : '100%'})` }}
-                  />
-                  <button 
-                    onClick={() => setAuthMode('signin')}
-                    className={`flex-1 text-[10px] font-black uppercase tracking-[0.2em] relative z-10 transition-colors ${authMode === 'signin' ? 'text-red-600' : 'text-slate-400'}`}
-                  >
-                    Login
-                  </button>
-                  <button 
-                    onClick={() => setAuthMode('signup')}
-                    className={`flex-1 text-[10px] font-black uppercase tracking-[0.2em] relative z-10 transition-colors ${authMode === 'signup' ? 'text-red-600' : 'text-slate-400'}`}
-                  >
-                    Signup
-                  </button>
+              <div className="space-y-6">
+                <button 
+                  onClick={handleGoogleSignIn} 
+                  className="w-full h-14 bg-white dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-black text-[11px] tracking-widest rounded-none shadow-md flex items-center justify-center active:scale-[0.98] outline-none"
+                >
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" className="w-6 h-6 mr-4" alt="Google" />
+                  CONTINUE WITH GOOGLE
+                </button>
+
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-700"></div></div>
+                  <div className="relative flex justify-center text-[9px] uppercase font-black tracking-[0.2em]"><span className="bg-white dark:bg-slate-800 px-4 text-slate-400">OR UTILIZE CREDENTIALS</span></div>
                 </div>
 
-                <div className="space-y-6">
-                  <div className="text-center space-y-2">
-                    <h3 className="text-2xl font-black tracking-tight">{authMode === "signin" ? "Unlock Terminal" : "Register Identity"}</h3>
-                    <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest">{authMode === "signin" ? "Initialize Secure Protocol" : "Join the Learning Matrix"}</p>
+                <div className="space-y-4">
+                  {authMode === "signup" && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="Scholar Name" 
+                        value={fullName} 
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="w-full px-5 py-4 bg-[#f1f5f9] dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 outline-none font-bold rounded-none focus:border-red-500 transition-colors text-slate-900 dark:text-white placeholder:text-slate-400" 
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Email Address</label>
+                    <input 
+                      type="email" 
+                      placeholder="name@domain.com" 
+                      value={email} 
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-5 py-4 bg-[#f1f5f9] dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 outline-none font-bold rounded-none focus:border-red-500 transition-colors text-slate-900 dark:text-white placeholder:text-slate-400" 
+                    />
                   </div>
-
-                  <div className="space-y-4">
-                    <button 
-                      onClick={handleGoogleSignIn} 
-                      disabled={isAuthLoading} 
-                      className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 font-black uppercase tracking-widest text-[10px] hover:bg-slate-50 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                      </svg>
-                      Continue with Google
-                    </button>
-
-                    <div className="relative text-center">
-                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-700"></div></div>
-                      <span className="relative bg-white dark:bg-slate-800 px-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">or utilize credentials</span>
-                    </div>
-
-                    {authMode === "signup" && (
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4 block">Full Name</label>
-                        <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold outline-none focus:ring-2 focus:ring-red-500/20" placeholder="Scholar Name" />
-                      </div>
-                    )}
-                    
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4 block">Email Endpoint</label>
-                      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold outline-none focus:ring-2 focus:ring-red-500/20" placeholder="name@domain.com" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4 block">Access Key</label>
-                      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 py-3.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold outline-none focus:ring-2 focus:ring-red-500/20" placeholder="••••••••" />
-                    </div>
-
-                    {authError && (
-                      <div className="text-[10px] font-black text-red-500 uppercase text-center bg-red-50 dark:bg-red-900/10 p-4 border border-red-100 dark:border-red-900/20 leading-relaxed whitespace-pre-wrap">
-                        {authError}
-                      </div>
-                    )}
-
-                    <Button className="w-full h-14 shadow-lg shadow-red-500/10" onClick={handleAuth} isLoading={isAuthLoading}>
-                      {authMode === "signin" ? "Unlock Terminal" : "Initialize Access"}
-                    </Button>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Password</label>
+                    <input 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password} 
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-5 py-4 bg-[#f1f5f9] dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 outline-none font-bold rounded-none focus:border-red-500 transition-colors text-slate-900 dark:text-white placeholder:text-slate-400" 
+                    />
                   </div>
                 </div>
-              </>
+
+                {authError && <p className="text-[10px] text-red-500 font-black uppercase tracking-widest text-center">{authError}</p>}
+
+                <Button 
+                  className="w-full h-14 bg-[#c2211d] hover:bg-red-800 text-white font-black text-xs tracking-[0.2em] rounded-xl active:scale-[0.98] transition-all shadow-xl shadow-red-500/10 border-none" 
+                  onClick={handleAuth} 
+                  isLoading={isAuthLoading}
+                >
+                  {authMode === "signin" ? "LOGIN" : "SIGNUP"}
+                </Button>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      <footer className="container-responsive py-8 opacity-40 text-[8px] font-black uppercase tracking-[0.4em] flex justify-between border-t border-slate-200">
+      <footer className="container-responsive py-8 opacity-40 text-[8px] font-black uppercase tracking-[0.4em] flex justify-between border-t border-slate-200 dark:border-slate-800">
         <p>© 2026 StuddiSmart AI Core</p>
-        <div className="flex gap-4"><button>Privacy</button><button>Terms</button></div>
+        <div className="flex gap-4"><button className="text-slate-900 dark:text-white">Privacy</button><button className="text-slate-900 dark:text-white">Terms</button></div>
       </footer>
     </div>
   );

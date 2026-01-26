@@ -1,7 +1,7 @@
 import React, { Component, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/Button";
 import { FlashcardViewer } from "./components/FlashcardViewer";
-import { generateAudio, generateStudySet } from "./services/geminiService";
+import { generateAudio, generateStudySet, QuotaExceededError } from "./services/geminiService";
 import { Flashcard, GenerationStep, MindmapNode, QuizQuestion, User, StudySet } from "./types";
 
 // ✅ IMPORTANT: keep this exact import so Firebase Auth is registered via firebase/auth
@@ -63,19 +63,20 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   render() {
     if (this.state.hasError) {
-      const message =
-        this.state.error instanceof Error
-          ? this.state.error.message
-          : String(this.state.error || "Unknown error");
+      const isQuota = String(this.state.error).toLowerCase().includes('quota') || String(this.state.error).toLowerCase().includes('429');
+      
       return (
         <div className="min-h-screen bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-6 flex items-center justify-center">
           <div className="max-w-2xl w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-none p-8 md:p-14 shadow-2xl">
-            <h2 className="text-3xl font-black tracking-tight mb-4 text-slate-900 dark:text-white">Terminal Error</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">The synthesis session encountered an unexpected software conflict.</p>
-            <div className="p-5 rounded-none bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono overflow-auto mb-8 max-h-40 text-slate-600 dark:text-slate-400">
-              {message}
-            </div>
-            <Button onClick={() => window.location.reload()} className="w-full h-14 rounded-none">Re-Initialize App</Button>
+            <h2 className="text-3xl font-black tracking-tight mb-4 text-slate-900 dark:text-white">
+              {isQuota ? "Traffic Limit Reached" : "Technical Conflict"}
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">
+              {isQuota 
+                ? "The AI synthesis engine is currently processing a high volume of requests. Free tier limits apply." 
+                : "The synthesis session encountered an unexpected hardware conflict."}
+            </p>
+            <Button onClick={() => window.location.reload()} className="w-full h-14 rounded-none">Re-Initialize Portal</Button>
           </div>
         </div>
       );
@@ -212,6 +213,7 @@ const AppInner: React.FC = () => {
   const [quizCount, setQuizCount] = useState(10);
   const [status, setStatus] = useState<GenerationStep>(GenerationStep.IDLE);
   const [generationErrorMessage, setGenerationErrorMessage] = useState("");
+  const [isQuotaError, setIsQuotaError] = useState(false);
 
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
@@ -347,6 +349,7 @@ const AppInner: React.FC = () => {
     setSelectedDoc(null);
     setStatus(GenerationStep.IDLE);
     setGenerationErrorMessage("");
+    setIsQuotaError(false);
     setView("home");
     setActiveTab("cards");
   };
@@ -447,6 +450,7 @@ const AppInner: React.FC = () => {
 
     setStatus(GenerationStep.PROCESSING);
     setGenerationErrorMessage("");
+    setIsQuotaError(false);
     try {
       const fcNum = flashcardCount || 10;
       const qNum = quizCount || 10;
@@ -482,7 +486,9 @@ const AppInner: React.FC = () => {
       setSelectedDoc(null);
     } catch (err: any) {
       console.error("Generation Error:", err);
-      setGenerationErrorMessage(err.message || "Synthesis failed. Please try again.");
+      const isQuota = err instanceof QuotaExceededError || err.message?.includes('429') || err.message?.includes('quota');
+      setGenerationErrorMessage(err.message || "Synthesis failed. System is overloaded.");
+      setIsQuotaError(isQuota);
       setStatus(GenerationStep.ERROR);
     }
   };
@@ -706,8 +712,14 @@ const AppInner: React.FC = () => {
               )}
               {status === GenerationStep.ERROR && (
                 <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 z-50 flex flex-col items-center justify-center p-6 text-center">
-                  <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-2 md:mb-4">Synthesis Failed</h3>
-                  <p className="text-slate-600 dark:text-slate-400 font-bold mb-6 md:mb-8 text-sm">{generationErrorMessage || "AI system is under high load. Please try again in a moment."}</p>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mb-2 md:mb-4">
+                    {isQuotaError ? "Synthesis Threshold Reached" : "Synthesis Failed"}
+                  </h3>
+                  <div className="max-w-md mx-auto text-slate-600 dark:text-slate-400 font-bold mb-6 md:mb-8 text-sm leading-relaxed">
+                    {isQuotaError 
+                      ? "The AI processing engine is currently serving maximum concurrent students. tier restrictions may apply to free users." 
+                      : "The system encountered a logic conflict. Please attempt a fresh synthesis."}
+                  </div>
                   <Button className="h-12 md:h-14 px-8 md:px-10" onClick={() => setStatus(GenerationStep.IDLE)}>Retry Console</Button>
                 </div>
               )}

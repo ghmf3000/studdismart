@@ -21,6 +21,7 @@ export interface QuizQuestion {
 
 export interface MindmapNode {
   label: string;
+  content?: string;
   children?: MindmapNode[];
 }
 

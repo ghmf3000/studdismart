@@ -17,17 +17,17 @@ const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean; isGener
     disabled={isGenerating}
     className={`group relative flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full transition-all duration-300 border shadow-sm active:scale-90 shrink-0 ${
       isPlaying 
-      ? 'bg-emerald-600 border-emerald-500 text-white ring-4 ring-emerald-500/20' 
+      ? 'bg-red-600 border-red-500 text-white ring-4 ring-red-500/20' 
       : isGenerating
         ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-300 cursor-wait'
         : variant === 'light'
-          ? 'bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 dark:hover:text-emerald-400'
-          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-900/50'
+          ? 'bg-white border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 dark:hover:text-red-400'
+          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-900/50'
     }`}
     title={isPlaying ? "Stop" : isGenerating ? "Generating Audio..." : "Listen to audio"}
   >
     {isGenerating ? (
-      <div className="w-4 h-4 border-2 border-slate-200 border-t-emerald-500 rounded-full animate-spin" />
+      <div className="w-4 h-4 border-2 border-slate-200 border-t-red-500 rounded-full animate-spin" />
     ) : isPlaying ? (
       <div className="flex gap-0.5 items-center justify-center">
         <div className="w-0.5 h-2.5 bg-white rounded-full animate-[bounce_0.6s_infinite_0ms]" />
@@ -191,7 +191,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
       >
         <div className={`card-inner w-full h-full relative ${isFlipped ? 'card-flipped' : ''}`}>
           {/* FRONT */}
-          <div className="card-front bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col p-0 overflow-hidden rounded-none border-t-4 border-t-emerald-500">
+          <div className="card-front bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col p-0 overflow-hidden rounded-none border-t-4 border-t-red-500">
             <div className="flex-1 w-full flex flex-col p-8 md:p-12 space-y-4 overflow-y-auto">
               <div className="flex-1 flex flex-col items-center justify-center min-h-0 text-center gap-4">
                   <div className="flex flex-col items-center gap-3 w-full">
@@ -215,7 +215,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
           </div>
 
           {/* BACK */}
-          <div className="card-back bg-slate-900 dark:bg-slate-800 shadow-xl text-white border border-slate-800 dark:border-slate-700 flex flex-col p-0 overflow-hidden rounded-none border-t-4 border-t-emerald-400">
+          <div className="card-back bg-slate-900 dark:bg-slate-800 shadow-xl text-white border border-slate-800 dark:border-slate-700 flex flex-col p-0 overflow-hidden rounded-none border-t-4 border-t-red-400">
             <div className="flex-1 w-full flex flex-col items-center justify-center p-8 md:p-12 relative overflow-y-auto gap-6">
               <div className="flex flex-col items-center justify-center gap-4 max-w-xl w-full text-center">
                 <ListenButton 
@@ -233,11 +233,11 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
             <button 
               onClick={handleFetchTutor}
               disabled={isFetchingTutor}
-              className={`w-full py-5 font-black text-xs tracking-[0.3em] uppercase transition-all duration-300 border-t border-slate-800/50 flex items-center justify-center gap-3 group bg-slate-800 dark:bg-slate-700 text-emerald-400 hover:bg-slate-700 dark:hover:bg-slate-600 active:bg-slate-800 disabled:opacity-50`}
+              className={`w-full py-5 font-black text-xs tracking-[0.3em] uppercase transition-all duration-300 border-t border-slate-800/50 flex items-center justify-center gap-3 group bg-slate-800 dark:bg-slate-700 text-red-400 hover:bg-slate-700 dark:hover:bg-slate-600 active:bg-slate-800 disabled:opacity-50`}
             >
               {isFetchingTutor ? (
                 <>
-                  <div className="w-3 h-3 border-2 border-slate-600 border-t-emerald-500 rounded-full animate-spin" />
+                  <div className="w-3 h-3 border-2 border-slate-600 border-t-red-500 rounded-full animate-spin" />
                   Synthesizing...
                 </>
               ) : (
@@ -255,20 +255,20 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
         <button 
           onClick={(e) => { e.stopPropagation(); onPrev?.(); }}
           disabled={index === 0}
-          className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 hover:text-emerald-500 disabled:opacity-0 transition-colors py-2"
+          className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 hover:text-red-500 disabled:opacity-0 transition-colors py-2"
         >
           Previous
         </button>
         
         <div className="px-6 py-2 bg-slate-800 dark:bg-slate-700 rounded-none text-white shadow-lg flex items-center gap-3 border border-slate-700 dark:border-slate-600 transition-transform hover:scale-105">
            <span className="text-[9px] font-black tracking-widest text-slate-400 dark:text-slate-400 uppercase">Card</span>
-           <span className="text-xs md:text-sm font-black text-emerald-400">{index + 1} <span className="text-slate-600 dark:text-slate-500">/</span> {total}</span>
+           <span className="text-xs md:text-sm font-black text-red-400">{index + 1} <span className="text-slate-600 dark:text-slate-500">/</span> {total}</span>
         </div>
 
         <button 
           onClick={(e) => { e.stopPropagation(); onNext?.(); }}
           disabled={index === total - 1}
-          className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 hover:text-emerald-500 disabled:opacity-0 transition-colors py-2"
+          className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 hover:text-red-500 disabled:opacity-0 transition-colors py-2"
         >
           Next
         </button>
@@ -281,7 +281,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
             {/* Modal Header */}
             <div className="px-6 md:px-8 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md sticky top-0 z-10">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-none flex items-center justify-center ${isFetchingTutor ? 'bg-slate-100 dark:bg-slate-700 animate-pulse' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 shadow-sm'}`}>
+                <div className={`w-10 h-10 rounded-none flex items-center justify-center ${isFetchingTutor ? 'bg-slate-100 dark:bg-slate-700 animate-pulse' : 'bg-red-50 dark:bg-red-900/30 text-red-600 shadow-sm'}`}>
                   <svg className={`w-5 h-5 ${isFetchingTutor ? 'text-slate-300' : ''}`} fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 </div>
                 <div>
@@ -307,7 +307,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                   <div className="space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                        <div className="w-1 h-4 bg-red-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Simple Explanation</span>
                       </div>
                       <ListenButton 
@@ -345,14 +345,14 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                   <div className="space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                        <div className="w-1 h-4 bg-red-500 rounded-full" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Core Takeaways</span>
                       </div>
                     </div>
                     <ul className="space-y-3">
                       {tutorData.keyCommands.map((item, i) => (
                         <li key={i} className="flex gap-3 text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 p-3 rounded-none border border-slate-200 dark:border-slate-700">
-                          <span className="text-emerald-500 font-black">#{i+1}</span>
+                          <span className="text-red-500 font-black">#{i+1}</span>
                           {item}
                         </li>
                       ))}
@@ -387,11 +387,11 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                       {tutorData.quickCheck.map((item, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700 rounded-none space-y-2 group hover:border-emerald-500/30 transition-colors duration-300">
+                        <div key={i} className="bg-white dark:bg-slate-800 p-4 border border-slate-200 dark:border-slate-700 rounded-none space-y-2 group hover:border-red-500/30 transition-colors duration-300">
                           <p className="text-xs font-black uppercase text-slate-400">Question {i+1}</p>
                           <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.question}</p>
                           <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                             <p className="text-[10px] font-black uppercase text-emerald-500">Answer</p>
+                             <p className="text-[10px] font-black uppercase text-red-500">Answer</p>
                              <p className="text-sm text-slate-600 dark:text-slate-300">{item.answer}</p>
                           </div>
                         </div>

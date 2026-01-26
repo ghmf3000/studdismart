@@ -56,8 +56,8 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
 export const generateStudySet = async (input: GenerationInput): Promise<StudySet> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Fix: Using gemini-3-pro-preview for complex reasoning task (Study Set Generation)
-    const model = 'gemini-3-pro-preview';
+    // Switch to gemini-3-flash-preview for higher rate limits and faster response
+    const model = 'gemini-3-flash-preview';
     
     const prompt = `You are a world-class educational assistant. Generate a comprehensive study set based on the provided input (text, images, or documents like PDFs).
     Analyze the material thoroughly. Extract all relevant educational concepts.
@@ -65,7 +65,8 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
     The study set must include:
     1. Exactly 8 Flashcards: Focused on core definitions, formulas, or historical facts.
     2. Exactly 5 Multiple Choice Questions: Testing comprehension with 4 distinct options and 1 correct answer.
-    3. A Mindmap: A hierarchical JSON structure summarizing the main topic and its key sub-branches.
+    3. A Mindmap: A hierarchical JSON structure summarizing the main topic and its key sub-branches. 
+       EACH node in the mindmap MUST include a 'label' (short title) AND 'content' (a 1-2 sentence explanation of that node).
 
     Strictly follow the provided JSON schema. Output valid JSON only.`;
 
@@ -116,25 +117,31 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
               type: Type.OBJECT,
               properties: {
                 label: { type: Type.STRING },
+                content: { type: Type.STRING },
                 children: {
                   type: Type.ARRAY,
                   items: {
                     type: Type.OBJECT,
                     properties: {
                       label: { type: Type.STRING },
+                      content: { type: Type.STRING },
                       children: { 
                         type: Type.ARRAY, 
                         items: { 
                           type: Type.OBJECT, 
-                          properties: { label: { type: Type.STRING } } 
+                          properties: { 
+                            label: { type: Type.STRING },
+                            content: { type: Type.STRING }
+                          },
+                          required: ["label", "content"]
                         } 
                       }
                     },
-                    required: ["label"]
+                    required: ["label", "content"]
                   }
                 }
               },
-              required: ["label"]
+              required: ["label", "content"]
             }
           },
           required: ["flashcards", "quiz", "mindmap"]
@@ -149,7 +156,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
     return {
       flashcards: (data.flashcards || []).map((c: any, i: number) => ({ ...c, id: `fc-${i}` })),
       quiz: (data.quiz || []).map((q: any, i: number) => ({ ...q, id: `q-${i}` })),
-      mindmap: data.mindmap || { label: "Main Topic", children: [] }
+      mindmap: data.mindmap || { label: "Main Topic", content: "Main topic summary", children: [] }
     };
   });
 };
@@ -157,7 +164,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
 export const fetchTutorInsights = async (question: string, answer: string): Promise<TutorExplanation> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Fix: Using gemini-3-pro-preview for complex reasoning task (Deep-dive Tutor Explanation)
+    // Switch to gemini-3-flash-preview for tutoring tasks to avoid quota issues
     const prompt = `You are a world-class educational tutor. Provide a deep-dive explanation for the following flashcard:
     Question: ${question}
     Answer: ${answer}
@@ -171,7 +178,7 @@ export const fetchTutorInsights = async (question: string, answer: string): Prom
     - exactly 4 to 5 Quick Check questions with short answers.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: { parts: [{ text: prompt }] },
       config: {
         responseMimeType: "application/json",

@@ -71,6 +71,10 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [generatingAudioId, setGeneratingAudioId] = useState<string | null>(null);
   
+  const [modalPos, setModalPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -88,6 +92,7 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
     setIsFlipped(false);
     setTutorData(null);
     setShowTutor(false);
+    setModalPos({ x: 0, y: 0 });
     stopAudio();
   }, [card]);
 
@@ -183,6 +188,39 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) return;
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX - modalPos.x, y: e.clientY - modalPos.y };
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+    setModalPos({
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
   return (
     <div className="flex flex-col items-center w-full max-w-2xl mx-auto px-4">
       <div 
@@ -208,8 +246,8 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
               </div>
             </div>
             <div className="w-full py-3 bg-slate-50 dark:bg-slate-700 border-t border-slate-100 dark:border-slate-700 flex items-center justify-center shrink-0">
-              <span className="text-[9px] text-slate-400 dark:text-slate-400 font-black tracking-[0.4em] uppercase">
-                Reveal Analysis
+              <span className="text-[11px] font-black tracking-[0.4em] uppercase bg-gradient-to-r from-red-600 via-purple-500 to-blue-500 bg-clip-text text-transparent animate-pulse">
+                Tap to see answer
               </span>
             </div>
           </div>
@@ -276,17 +314,27 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
 
       {/* AI TUTOR MODAL */}
       {showTutor && (
-        <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-4xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-none shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-500 border border-slate-200 dark:border-slate-700">
-            {/* Modal Header */}
-            <div className="px-6 md:px-8 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md sticky top-0 z-10">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-none flex items-center justify-center ${isFetchingTutor ? 'bg-slate-100 dark:bg-slate-700 animate-pulse' : 'bg-red-50 dark:bg-red-900/30 text-red-600 shadow-sm'}`}>
-                  <svg className={`w-5 h-5 ${isFetchingTutor ? 'text-slate-300' : ''}`} fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+        <div className="fixed inset-0 z-[300] bg-slate-950/95 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
+          <div 
+            style={{ transform: `translate(${modalPos.x}px, ${modalPos.y}px)` }}
+            className={`bg-white dark:bg-slate-800 w-full max-w-4xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-none shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-500 border border-slate-200 dark:border-slate-700 relative ${isDragging ? 'cursor-grabbing select-none' : ''}`}
+          >
+            {/* Modal Header (Drag Handle) */}
+            <div 
+              onMouseDown={handleMouseDown}
+              className="px-6 md:px-8 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md sticky top-0 z-10 cursor-grab active:cursor-grabbing"
+            >
+              <div className="flex items-center gap-3 pointer-events-none">
+                <div className={`w-10 h-10 rounded-none flex items-center justify-center transition-all duration-500 ${isFetchingTutor ? 'bg-slate-100 dark:bg-slate-700 animate-pulse scale-90' : 'bg-red-50 dark:bg-red-900/30 text-red-600 shadow-sm scale-100'}`}>
+                  {isFetchingTutor ? (
+                    <div className="w-4 h-4 border-2 border-slate-300 border-t-red-500 rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  )}
                 </div>
-                <div>
+                <div className={`transition-all duration-700 delay-200 ${tutorData ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
                   <h2 className="text-lg md:text-xl font-black tracking-tight text-slate-900 dark:text-slate-100">AI Tutor Deep Dive</h2>
-                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Personal Learning Synthesis</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Personal Learning Synthesis (Draggable)</p>
                 </div>
               </div>
               <button 

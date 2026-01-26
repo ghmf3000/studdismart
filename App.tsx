@@ -1,8 +1,8 @@
 import React, { Component, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./components/Button";
 import { FlashcardViewer } from "./components/FlashcardViewer";
-import { generateAudio, generateStudySet, StudySet } from "./services/geminiService";
-import { Flashcard, GenerationStep, MindmapNode, QuizQuestion, User } from "./types";
+import { generateAudio, generateStudySet } from "./services/geminiService";
+import { Flashcard, GenerationStep, MindmapNode, QuizQuestion, User, StudySet } from "./types";
 
 // ✅ IMPORTANT: keep this exact import so Firebase Auth is registered via firebase/auth
 import { auth, googleProvider } from "./services/firebase";
@@ -25,6 +25,12 @@ const hashString = (str: string) => {
     hash |= 0;
   }
   return hash.toString();
+};
+
+const formatSeconds = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 /** ---------- Error Boundary (prevents blank screen) ---------- */
@@ -209,17 +215,25 @@ const AppInner: React.FC = () => {
 
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
+  const [testQuestions, setTestQuestions] = useState<QuizQuestion[]>([]);
   const [mindmap, setMindmap] = useState<MindmapNode | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"cards" | "quiz" | "mindmap">("cards");
+  const [activeTab, setActiveTab] = useState<"cards" | "quiz" | "test" | "mindmap">("cards");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [quizIndex, setQuizIndex] = useState(0);
+  const [testIndex, setTestIndex] = useState(0);
 
   const [view, setView] = useState<"home" | "viewer" | "profile" | "pricing" | "about">("home");
   const [selectedDoc, setSelectedDoc] = useState<SelectedDoc | null>(null);
 
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [isQuizSubmitted, setIsQuizSubmitted] = useState(false);
+  const [testAnswers, setTestAnswers] = useState<Record<string, string>>({});
+  const [isTestSubmitted, setIsTestSubmitted] = useState(false);
+  
+  const [testStartTime, setTestStartTime] = useState<number | null>(null);
+  const [testDuration, setTestDuration] = useState<number>(0);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
 
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [profileNameInput, setProfileNameInput] = useState("");
@@ -296,7 +310,21 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     stopAudio();
     setIsMobileMenuOpen(false);
-  }, [activeTab, view, quizIndex, currentIndex]);
+    if (activeTab === 'test' && !isTestSubmitted && !testStartTime) {
+      setTestStartTime(Date.now());
+      setElapsedTime(0);
+    }
+  }, [activeTab, view, quizIndex, testIndex, currentIndex]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (activeTab === 'test' && !isTestSubmitted && testStartTime) {
+      interval = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - testStartTime) / 1000));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab, isTestSubmitted, testStartTime]);
 
   const toggleDarkMode = () => setIsDarkMode((v) => !v);
 
@@ -305,11 +333,17 @@ const AppInner: React.FC = () => {
     setInput("");
     setCards([]);
     setQuiz([]);
+    setTestQuestions([]);
     setMindmap(null);
     setQuizAnswers({});
     setIsQuizSubmitted(false);
+    setTestAnswers({});
+    setIsTestSubmitted(false);
+    setTestStartTime(null);
+    setElapsedTime(0);
     setCurrentIndex(0);
     setQuizIndex(0);
+    setTestIndex(0);
     setSelectedDoc(null);
     setStatus(GenerationStep.IDLE);
     setGenerationErrorMessage("");
@@ -404,6 +438,7 @@ const AppInner: React.FC = () => {
         const parsed = JSON.parse(cachedSet) as StudySet;
         setCards(parsed.flashcards);
         setQuiz(parsed.quiz);
+        setTestQuestions(parsed.test || []);
         setMindmap(parsed.mindmap);
         setView("viewer");
         return;
@@ -431,11 +466,17 @@ const AppInner: React.FC = () => {
 
       setCards(studySet.flashcards || []);
       setQuiz(studySet.quiz || []);
+      setTestQuestions(studySet.test || []);
       setMindmap(studySet.mindmap || null);
       setCurrentIndex(0);
       setQuizIndex(0);
+      setTestIndex(0);
       setQuizAnswers({});
       setIsQuizSubmitted(false);
+      setTestAnswers({});
+      setIsTestSubmitted(false);
+      setTestStartTime(null);
+      setElapsedTime(0);
       setStatus(GenerationStep.COMPLETED);
       setView("viewer");
       setSelectedDoc(null);
@@ -496,6 +537,41 @@ const AppInner: React.FC = () => {
     };
   }, [quiz, quizAnswers]);
 
+  const testResults = useMemo(() => {
+    const total = testQuestions.length;
+    const answeredCount = Object.keys(testAnswers).length;
+    const correctQuestions = testQuestions.filter((q) => testAnswers[q.id] === q.correctAnswer);
+    const correctCount = correctQuestions.length;
+    
+    // Categorize errors
+    const categories = Array.from(new Set(testQuestions.map(q => q.category)));
+    const categoryStats = categories.map(cat => {
+      const qInCat = testQuestions.filter(q => q.category === cat);
+      const correctInCat = qInCat.filter(q => testAnswers[q.id] === q.correctAnswer);
+      return {
+        category: cat,
+        total: qInCat.length,
+        correct: correctInCat.length,
+        percentage: Math.round((correctInCat.length / qInCat.length) * 100)
+      };
+    });
+
+    const areasToImprove = categoryStats
+      .filter(stat => stat.percentage < 70)
+      .map(stat => stat.category);
+
+    return {
+      total,
+      answeredCount,
+      correctCount,
+      isAllAnswered: answeredCount === total && total > 0,
+      percentage: total > 0 ? Math.round((correctCount / total) * 100) : 0,
+      durationInSeconds: testDuration,
+      categoryStats,
+      areasToImprove
+    };
+  }, [testQuestions, testAnswers, testDuration]);
+
   const handleUpgrade = (tier: 'pro') => {
     if (!user) { 
       setAuthMode("signup");
@@ -511,9 +587,17 @@ const AppInner: React.FC = () => {
   const activeTabColor = useMemo(() => {
     if (activeTab === 'cards') return 'bg-red-600 dark:bg-red-500';
     if (activeTab === 'quiz') return 'bg-blue-600 dark:bg-blue-500';
+    if (activeTab === 'test') return 'bg-emerald-600 dark:bg-emerald-500';
     if (activeTab === 'mindmap') return 'bg-purple-600 dark:bg-purple-500';
     return 'bg-slate-800 dark:bg-slate-100';
   }, [activeTab]);
+
+  const handleTestSubmit = () => {
+    if (testStartTime) {
+      setTestDuration(Math.round((Date.now() - testStartTime) / 1000));
+    }
+    setIsTestSubmitted(true);
+  };
 
   return (
     <div className="flex-grow flex flex-col bg-[#f3f4f6] dark:bg-slate-900 transition-colors">
@@ -683,20 +767,22 @@ const AppInner: React.FC = () => {
         )}
 
         {view === "viewer" && (
-          <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 animate-content">
+          <div className="max-w-5xl mx-auto space-y-6 md:match-y-8 animate-content">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 md:gap-4">
-              <div className="flex bg-white dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200 dark:border-slate-700 w-full lg:max-w-lg relative h-10 md:h-14">
+              <div className="flex bg-white dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200 dark:border-slate-700 w-full lg:max-w-2xl relative h-10 md:h-14">
                 <div className="absolute inset-1 pointer-events-none">
-                  <div className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out`} style={{ width: '33.33%', transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : '200%'})` }} />
+                  <div className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out`} style={{ width: '25%', transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : activeTab === 'test' ? '200%' : '300%'})` }} />
                 </div>
-                {(["cards", "quiz", "mindmap"] as const).map((tab) => (
+                {(["cards", "quiz", "test", "mindmap"] as const).map((tab) => (
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 text-[8px] md:text-[10px] font-black rounded-none relative z-10 uppercase tracking-widest ${activeTab === tab ? "text-white dark:text-slate-900" : "text-slate-400 hover:text-slate-600"}`}>{tab}</button>
                 ))}
               </div>
               <Button onClick={() => setView("home")} variant="secondary" className="h-10 md:h-14 px-6 md:px-8 rounded-none text-[10px] md:text-xs">Back to Console</Button>
             </div>
+            
             <div className="min-h-[300px] md:min-h-[450px]">
               {activeTab === "cards" && <FlashcardViewer card={cards[currentIndex]} index={currentIndex} total={cards.length} onPrev={() => setCurrentIndex((p) => Math.max(0, p - 1))} onNext={() => setCurrentIndex((p) => Math.min(cards.length - 1, p + 1))} />}
+              
               {activeTab === "quiz" && (
                 <div className="max-w-2xl mx-auto">
                   {isQuizSubmitted ? (
@@ -704,40 +790,231 @@ const AppInner: React.FC = () => {
                       <div className="bg-white dark:bg-slate-800 p-6 md:p-12 border border-slate-200 dark:border-slate-700 shadow-xl border-t-8 border-t-red-600 space-y-8 md:space-y-10">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8 pb-6 md:pb-10 border-b border-slate-100 dark:border-slate-700">
                           <div className="text-center md:text-left space-y-2">
-                             <div className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-red-500">Synthesis Score</div>
+                             <div className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-red-500">Practice Score</div>
                              <h3 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white leading-none">{quizResults.percentage}%</h3>
                              <p className="text-slate-500 dark:text-slate-400 text-xs font-bold">Accuracy Rating Verified</p>
                           </div>
+                          <div className="flex gap-4">
+                            <div className="text-center p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                              <div className="text-[8px] font-black text-slate-400 uppercase">Correct</div>
+                              <div className="text-xl font-black text-emerald-500">{quizResults.correctCount}</div>
+                            </div>
+                            <div className="text-center p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                              <div className="text-[8px] font-black text-slate-400 uppercase">Wrong</div>
+                              <div className="text-xl font-black text-red-500">{quizResults.total - quizResults.correctCount}</div>
+                            </div>
+                          </div>
                         </div>
-                        <Button className="w-full h-12 md:h-14 bg-red-600 hover:bg-red-700" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Reset Checkpoint</Button>
+
+                        <div className="space-y-6">
+                           <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white border-l-4 border-red-500 pl-3">Answer Breakdown & Analysis</h4>
+                           <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                             {quiz.map((q, i) => (
+                               <div key={q.id} className={`p-5 border rounded-none ${quizAnswers[q.id] === q.correctAnswer ? 'border-emerald-100 bg-emerald-50/20' : 'border-red-100 bg-red-50/20'}`}>
+                                 <p className="text-xs font-bold text-slate-900 dark:text-white mb-2">{i+1}. {q.question}</p>
+                                 <div className="grid grid-cols-2 gap-2 mb-3">
+                                    <div className="text-[10px] uppercase font-black">Your: <span className={quizAnswers[q.id] === q.correctAnswer ? 'text-emerald-600' : 'text-red-600'}>{quizAnswers[q.id]}</span></div>
+                                    <div className="text-[10px] uppercase font-black text-slate-400">Correct: <span className="text-emerald-600">{q.correctAnswer}</span></div>
+                                 </div>
+                                 <div className="p-3 bg-white/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
+                                   <p className="text-[10px] text-slate-500 leading-relaxed font-medium"><span className="font-black text-blue-500 uppercase mr-1">Explanation:</span> {q.explanation}</p>
+                                 </div>
+                               </div>
+                             ))}
+                           </div>
+                        </div>
+
+                        <Button className="w-full h-12 md:h-14 bg-red-600 hover:bg-red-700" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Re-Practice Segment</Button>
                       </div>
                     </div>
                   ) : (
                     <div className="bg-white dark:bg-slate-800 p-5 md:p-8 border border-slate-200 dark:border-slate-700 shadow-xl border-t-4 border-t-blue-500 space-y-6 md:space-y-8">
                       <div className="text-center space-y-3 md:space-y-4">
-                        <div className="text-[8px] md:text-[10px] font-black uppercase text-blue-500 tracking-[0.2em]">Question {quizIndex + 1} of {quiz.length}</div>
+                        <div className="text-[8px] md:text-[10px] font-black uppercase text-blue-500 tracking-[0.2em]">Practice Mode: Question {quizIndex + 1} of {quiz.length}</div>
                         <h3 className="text-base md:text-xl font-bold text-slate-900 dark:text-white">{quiz[quizIndex]?.question}</h3>
                         <div className="flex justify-center"><ListenButton onListen={() => handleSpeak(quiz[quizIndex]?.question || "", "q")} isPlaying={playingId === "q"} /></div>
                       </div>
                       <div className="grid grid-cols-1 gap-2">
-                        {quiz[quizIndex]?.options.map((opt, i) => (
-                          <button key={i} onClick={() => setQuizAnswers((p) => ({ ...p, [quiz[quizIndex].id]: opt }))} className={`p-3 md:p-4 text-left border font-bold transition-all text-[11px] md:text-sm ${quizAnswers[quiz[quizIndex].id] === opt ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"}`}>
-                            {String.fromCharCode(65 + i)}. {opt}
-                          </button>
-                        ))}
+                        {quiz[quizIndex]?.options.map((opt, i) => {
+                          const hasAnswered = !!quizAnswers[quiz[quizIndex]?.id];
+                          const isSelected = quizAnswers[quiz[quizIndex]?.id] === opt;
+                          const isCorrect = opt === quiz[quizIndex]?.correctAnswer;
+                          
+                          return (
+                            <button 
+                              key={i} 
+                              disabled={hasAnswered}
+                              onClick={() => setQuizAnswers((p) => ({ ...p, [quiz[quizIndex].id]: opt }))} 
+                              className={`p-3 md:p-4 text-left border font-bold transition-all text-[11px] md:text-sm relative overflow-hidden rounded-none ${
+                                !hasAnswered 
+                                  ? "border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                                  : isCorrect
+                                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700"
+                                    : isSelected
+                                      ? "border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700"
+                                      : "border-slate-100 dark:border-slate-800 opacity-50"
+                              }`}
+                            >
+                              <span className="relative z-10">{String.fromCharCode(65 + i)}. {opt}</span>
+                              {hasAnswered && isCorrect && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 font-black">✓</span>}
+                              {hasAnswered && isSelected && !isCorrect && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-black">✗</span>}
+                            </button>
+                          );
+                        })}
                       </div>
+
+                      {quizAnswers[quiz[quizIndex]?.id] && (
+                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <p className="text-[10px] font-black uppercase text-blue-500 mb-2">Expert Feedback</p>
+                          <p className="text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                            {quiz[quizIndex].explanation}
+                          </p>
+                        </div>
+                      )}
+
                       <div className="flex flex-col sm:flex-row gap-2 md:gap-3 pt-4 md:pt-6">
                         <Button variant="secondary" className="flex-1 h-10 md:h-12" onClick={() => setQuizIndex((p) => Math.max(0, p - 1))} disabled={quizIndex === 0}>Prev</Button>
                         {quizIndex === quiz.length - 1 ? (
-                          <Button className="flex-[2] h-10 md:h-12 bg-blue-600" onClick={() => setIsQuizSubmitted(true)} disabled={!quizResults.isAllAnswered}>Submit Analysis</Button>
+                          <Button className="flex-[2] h-10 md:h-12 bg-blue-600" onClick={() => setIsQuizSubmitted(true)} disabled={!quizResults.isAllAnswered}>Review Session results</Button>
                         ) : (
-                          <Button className="flex-[2] h-10 md:h-12 bg-blue-600" onClick={() => setQuizIndex((p) => Math.min(quiz.length - 1, p + 1))}>Next Segment</Button>
+                          <Button className="flex-[2] h-10 md:h-12 bg-blue-600" onClick={() => setQuizIndex((p) => Math.min(quiz.length - 1, p + 1))} disabled={!quizAnswers[quiz[quizIndex]?.id]}>Next Segment</Button>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
               )}
+
+              {activeTab === "test" && (
+                <div className="max-w-2xl mx-auto">
+                  {isTestSubmitted ? (
+                    <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="bg-slate-900 p-8 md:p-14 border-t-8 border-emerald-500 text-white space-y-10 shadow-2xl relative overflow-hidden rounded-none">
+                        <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                          <svg className="w-40 h-40" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
+                        </div>
+                        <div className="text-center space-y-4 relative z-10">
+                           <div className="text-[10px] font-black uppercase tracking-[0.5em] text-emerald-400">Knowledge Performance Index</div>
+                           <h3 className="text-6xl md:text-8xl font-black">{testResults.percentage}%</h3>
+                           <div className="flex items-center justify-center gap-6">
+                              <div className="text-center">
+                                <div className="text-[8px] font-black uppercase text-slate-500 mb-1">Total Points</div>
+                                <div className="text-xl font-black">{testResults.correctCount} / {testResults.total}</div>
+                              </div>
+                              <div className="w-px h-8 bg-slate-800" />
+                              <div className="text-center">
+                                <div className="text-[8px] font-black uppercase text-slate-500 mb-1">Time Elapsed</div>
+                                <div className="text-xl font-black">{Math.floor(testResults.durationInSeconds / 60)}m {testResults.durationInSeconds % 60}s</div>
+                              </div>
+                           </div>
+                        </div>
+
+                        <div className="space-y-6 relative z-10">
+                          <h4 className="text-xs font-black uppercase tracking-widest border-l-2 border-emerald-500 pl-3">Performance Analytics</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                             <div className="bg-slate-800 p-4 border border-slate-700">
+                               <div className="text-[8px] font-black text-slate-500 uppercase mb-2">Concept Mastery</div>
+                               <div className="h-2 w-full bg-slate-700 rounded-full overflow-hidden mb-2">
+                                 <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${testResults.percentage}%` }} />
+                               </div>
+                               <div className="text-[10px] font-bold text-slate-300">Retention: {testResults.percentage > 70 ? 'High Confidence' : 'Review Required'}</div>
+                             </div>
+                             <div className="bg-slate-800 p-4 border border-slate-700">
+                               <div className="text-[8px] font-black text-slate-500 uppercase mb-2">Synthesis Velocity</div>
+                               <div className="text-lg font-black">{testResults.total > 0 ? Math.round(testResults.durationInSeconds / testResults.total) : 0}s <span className="text-[10px] text-slate-500 font-bold uppercase">per question</span></div>
+                               <div className="text-[10px] font-bold text-slate-300">Pace: {testResults.total > 0 && Math.round(testResults.durationInSeconds / testResults.total) < 20 ? 'Aggressive' : 'Steady'}</div>
+                             </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-6 relative z-10">
+                          <h4 className="text-xs font-black uppercase tracking-widest border-l-2 border-red-500 pl-3">Target Improvement Areas</h4>
+                          <div className="bg-red-500/10 border border-red-500/20 p-5 space-y-4">
+                            {testResults.areasToImprove.length > 0 ? (
+                              <>
+                                <p className="text-sm font-bold text-red-400">Analysis indicates weakness in the following sectors:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {testResults.areasToImprove.map((area, i) => (
+                                    <span key={i} className="px-3 py-1 bg-red-500/20 text-red-200 text-[10px] font-black uppercase rounded-none border border-red-500/30">
+                                      {area}
+                                    </span>
+                                  ))}
+                                </div>
+                                <p className="text-xs text-slate-400 leading-relaxed">Recommendation: Focus on these concepts in the 'AI Tutor Deep Dive' and Mindmap sections to bridge the synthesis gap.</p>
+                              </>
+                            ) : (
+                              <p className="text-sm font-bold text-emerald-400">Omniscient Performance: No significant knowledge gaps detected across categories.</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 relative z-10">
+                           <h4 className="text-xs font-black uppercase tracking-widest border-l-2 border-emerald-500 pl-3">Critique & Corrections</h4>
+                           <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                             {testQuestions.map((q, i) => {
+                               const isCorrect = testAnswers[q.id] === q.correctAnswer;
+                               return (
+                                 <div key={q.id} className={`p-4 border ${isCorrect ? 'bg-emerald-950/20 border-emerald-900/30' : 'bg-red-950/20 border-red-900/30'}`}>
+                                   <div className="flex justify-between items-start mb-2">
+                                     <p className="text-[11px] font-bold flex-1">{i+1}. {q.question}</p>
+                                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 ${isCorrect ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                       {isCorrect ? 'CORRECT' : 'FAILED'}
+                                     </span>
+                                   </div>
+                                   <div className="grid grid-cols-2 gap-2 text-[9px] font-black uppercase text-slate-500 mb-3">
+                                      <div>YOUR LOGIC: <span className={isCorrect ? 'text-emerald-400' : 'text-red-400'}>{testAnswers[q.id] || 'SKIP'}</span></div>
+                                      <div>SYNTHESIS: <span className="text-emerald-400">{q.correctAnswer}</span></div>
+                                   </div>
+                                   <p className="text-[10px] text-slate-400 font-medium border-t border-white/5 pt-2 italic">
+                                     <span className="text-blue-400 font-black not-italic mr-1">EXPLANATION:</span> {q.explanation}
+                                   </p>
+                                 </div>
+                               );
+                             })}
+                           </div>
+                        </div>
+
+                        <Button className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 font-black tracking-widest relative z-10 rounded-none" onClick={() => { setIsTestSubmitted(false); setTestIndex(0); setTestAnswers({}); setTestStartTime(Date.now()); }}>Re-Attempt Integration Exam</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white dark:bg-slate-800 p-8 md:p-12 border border-slate-200 dark:border-slate-700 shadow-xl border-t-8 border-t-emerald-500 space-y-8 rounded-none">
+                       <div className="flex justify-between items-center mb-4">
+                         <div className="text-[10px] font-black uppercase text-slate-400">Evaluation Phase</div>
+                         <div className="flex items-center gap-4">
+                            <div className="px-3 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-mono text-xs font-bold tracking-widest">
+                               {formatSeconds(elapsedTime)}
+                            </div>
+                            <div className="px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 rounded-none text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              Knowledge Validation
+                            </div>
+                         </div>
+                       </div>
+                       <div className="text-center space-y-4">
+                          <div className="text-[10px] font-black uppercase text-emerald-500 tracking-[0.4em]">Checkpoint {testIndex + 1} / {testQuestions.length}</div>
+                          <h3 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white leading-tight">{testQuestions[testIndex]?.question}</h3>
+                       </div>
+                       <div className="grid grid-cols-1 gap-3">
+                         {testQuestions[testIndex]?.options.map((opt, i) => (
+                           <button key={i} onClick={() => setTestAnswers((p) => ({ ...p, [testQuestions[testIndex].id]: opt }))} className={`p-4 md:p-5 text-left border-2 font-black transition-all text-xs md:text-sm rounded-none ${testAnswers[testQuestions[testIndex].id] === opt ? "border-emerald-500 bg-emerald-50/20 text-emerald-700 shadow-lg" : "border-slate-100 dark:border-slate-700 hover:border-emerald-200"}`}>
+                             {String.fromCharCode(65 + i)}. {opt}
+                           </button>
+                         ))}
+                       </div>
+                       <div className="flex gap-3 pt-6">
+                         <Button variant="secondary" className="flex-1 h-12 md:h-14" onClick={() => setTestIndex((p) => Math.max(0, p - 1))} disabled={testIndex === 0}>Backtrack</Button>
+                         {testIndex === testQuestions.length - 1 ? (
+                           <Button className="flex-[2] h-12 md:h-14 bg-emerald-600 shadow-emerald-500/10" onClick={handleTestSubmit} disabled={Object.keys(testAnswers).length < testQuestions.length}>Finalize Submission</Button>
+                         ) : (
+                           <Button className="flex-[2] h-12 md:h-14 bg-emerald-600 shadow-emerald-500/10" onClick={() => setTestIndex((p) => Math.min(testQuestions.length - 1, p + 1))}>Commit & Advance</Button>
+                         )}
+                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeTab === "mindmap" && <div className="bg-white dark:bg-slate-800 p-6 md:p-12 border border-slate-200 dark:border-slate-700 overflow-x-auto border-t-4 border-t-purple-500">{mindmap ? <MindmapNodeView node={mindmap} /> : <div className="text-center py-20 font-black opacity-10 uppercase tracking-widest text-slate-900 dark:text-white">Graph Unavailable</div>}</div>}
             </div>
           </div>
@@ -830,26 +1107,50 @@ const AppInner: React.FC = () => {
         )}
 
         {view === "pricing" && (
-          <div className="max-w-4xl mx-auto py-6 md:py-10 space-y-8 md:space-y-12 animate-content">
-            <h2 className="text-3xl md:text-4xl font-black text-center text-slate-900 dark:text-white leading-tight">Select Synthesis Plan</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-4 sm:px-0">
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8">
-                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Free Scholar</h3>
+          <div className="max-w-5xl mx-auto py-6 md:py-10 space-y-8 md:space-y-12 animate-content">
+            <h2 className="text-3xl md:text-4xl font-black text-center text-slate-900 dark:text-white leading-tight">Select StuddiSmart Plan</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
+              {/* Free Plan */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
+                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Free Plan</h3>
                 <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$0</div>
-                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-500">
+                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-500 flex-grow">
                   <li>• 10 Flashcards per unique topic</li>
                   <li>• 10 Quizzes per unique topic</li>
                 </ul>
                 <Button variant="secondary" className="w-full cursor-default h-12" disabled>{user?.tier === 'free' ? 'Current Plan' : 'Free Tier'}</Button>
               </div>
-              <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-6 md:p-8 space-y-6 md:space-y-8 shadow-xl md:scale-105">
-                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Pro Scholar</h3>
-                <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$19</div>
-                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300">
+              
+              {/* Pro Plan - Monthly */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
+                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Pro Plan</h3>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly Subscription</div>
+                  <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$9.99<span className="text-sm font-bold text-slate-400">/month</span></div>
+                </div>
+                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
                   <li>• Unlimited flashcards (up to 50/set)</li>
                   <li>• Unlimited quizzes (up to 30/set)</li>
+                  <li>• Full AI Synthesis access</li>
                 </ul>
-                <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Upgrade to Pro'}</Button>
+                <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Monthly'}</Button>
+              </div>
+
+              {/* Pro Plan - Yearly */}
+              <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-6 md:p-8 space-y-6 md:space-y-8 shadow-xl md:scale-105 flex flex-col relative overflow-hidden">
+                <div className="absolute top-4 right-[-35px] bg-red-600 text-white text-[8px] font-black py-1 px-10 rotate-45 uppercase tracking-widest">20% Discount</div>
+                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Pro Plan</h3>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Yearly Subscription</div>
+                  <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$7.99<span className="text-sm font-bold text-slate-400">/month</span></div>
+                  <div className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 dark:bg-red-900/20 inline-block px-2 py-0.5">20% Discount Received</div>
+                </div>
+                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
+                  <li>• Everything in Monthly</li>
+                  <li>• $95.88 billed annually</li>
+                  <li>• Best Value plan</li>
+                </ul>
+                <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Yearly'}</Button>
               </div>
             </div>
           </div>

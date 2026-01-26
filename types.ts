@@ -17,6 +17,8 @@ export interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: string;
+  explanation: string;
+  category: string; // Used for detailed analytics
 }
 
 export interface MindmapNode {
@@ -36,6 +38,13 @@ export interface TutorExplanation {
   keyCommands: string[];
   commonMistakes: string[];
   quickCheck: QuickCheckItem[];
+}
+
+export interface StudySet {
+  flashcards: Flashcard[];
+  quiz: QuizQuestion[];
+  test: QuizQuestion[];
+  mindmap: MindmapNode;
 }
 
 // Fixed GenerationStep by using a type union of the constant values instead of an interface

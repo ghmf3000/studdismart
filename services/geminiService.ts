@@ -15,8 +15,13 @@ export class QuotaExceededError extends Error {
   }
 }
 
-const FUNCTION_URL =
-  "https://us-central1-studywiseai-458aa.cloudfunctions.net/generateStudySet";
+const URLS = {
+  // IMPORTANT: use the exact URLs from your deploy output
+  generateStudySet: "https://generatestudyset-o54p56rtpg-uc.a.run.app",
+  chat: "https://us-central1-studywiseai-458aa.cloudfunctions.net/chat",
+  insights: "https://us-central1-studywiseai-458aa.cloudfunctions.net/insights",
+  tts: "https://us-central1-studywiseai-458aa.cloudfunctions.net/tts",
+};
 
 const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> => {
   let delay = 1500;
@@ -51,58 +56,81 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> =>
   throw new Error(lastError?.message || "Request failed.");
 };
 
+async function postJSON<T>(url: string, body: any): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 429) {
+    const data = await res.json().catch(() => ({}));
+    throw new QuotaExceededError(
+      data?.error || "StuddiSmart is rate-limited. Please wait and try again."
+    );
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Request failed.");
+  }
+
+  return (await res.json()) as T;
+}
+
+/**
+ * ✅ Study Set generation (flashcards/quiz/test/mindmap)
+ */
 export const generateStudySet = async (input: GenerationInput): Promise<StudySet> => {
   return withRetry(async () => {
-    const res = await fetch(FUNCTION_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: input.text || "",
-        attachment: input.attachment,
-        flashcardCount: input.flashcardCount ?? 10,
-        quizCount: input.quizCount ?? 10,
-        isDifferentSet: input.isDifferentSet ?? false,
-      }),
+    return await postJSON<StudySet>(URLS.generateStudySet, {
+      text: input.text || "",
+      attachment: input.attachment,
+      flashcardCount: input.flashcardCount ?? 10,
+      quizCount: input.quizCount ?? 10,
+      isDifferentSet: input.isDifferentSet ?? false,
     });
-
-    if (res.status === 429) {
-      const data = await res.json().catch(() => ({}));
-      throw new QuotaExceededError(
-        data?.error || "StuddiSmart is rate-limited. Please wait and try again."
-      );
-    }
-
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(t || "Generation failed.");
-    }
-
-    return (await res.json()) as StudySet;
   });
 };
 
 /**
- * These 3 still call Gemini directly in your old version.
- * Since we moved keys to the backend, they should be converted
- * to backend endpoints too next.
- *
- * For now, keep them as placeholders so your build doesn't break.
- * We’ll add /chat, /insights, /tts functions next.
+ * ✅ StuddiChat tutor response
  */
 export const generateChatResponse = async (
-  _messages: ChatMessage[],
-  _topicContext?: string
+  messages: ChatMessage[],
+  topicContext?: string
 ): Promise<string> => {
-  throw new Error("Chat endpoint not connected yet. Next step: add a Firebase Function for chat.");
+  return withRetry(async () => {
+    const data = await postJSON<{ text: string }>(URLS.chat, {
+      messages: messages.map((m) => ({
+        role: m.role === "assistant" ? "model" : "user", // normalize if your types use "assistant"
+        text: m.text,
+      })),
+      topicContext: topicContext || "",
+    });
+    return data.text || "";
+  });
 };
 
+/**
+ * ✅ Tutor insights JSON for a Q/A (explanations + quick check)
+ */
 export const fetchTutorInsights = async (
-  _question: string,
-  _answer: string
+  question: string,
+  answer: string
 ): Promise<TutorExplanation> => {
-  throw new Error("Insights endpoint not connected yet. Next step: add a Firebase Function for insights.");
+  return withRetry(async () => {
+    return await postJSON<TutorExplanation>(URLS.insights, { question, answer });
+  });
 };
 
-export const generateAudio = async (_text: string): Promise<string> => {
-  throw new Error("TTS endpoint not connected yet. Next step: add a Firebase Function for audio.");
+/**
+ * ✅ TTS (returns base64 audio)
+ */
+export const generateAudio = async (text: string): Promise<string> => {
+  return withRetry(async () => {
+    const data = await postJSON<{ audioBase64: string }>(URLS.tts, { text });
+    if (!data?.audioBase64) throw new Error("Audio generation failed.");
+    return data.audioBase64;
+  });
 };

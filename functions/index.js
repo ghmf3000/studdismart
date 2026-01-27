@@ -122,7 +122,7 @@ Return ONLY valid JSON.
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "models/gemini-1.5-flash-latest",
         contents: { parts },
         config: {
           systemInstruction,
@@ -184,7 +184,7 @@ exports.chat = onRequest({}, (req, res) => {
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "models/gemini-1.5-flash-latest",
         contents: messages.map((m) => ({
           role: m.role === "model" ? "model" : "user",
           parts: [{ text: m.text }],

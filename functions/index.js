@@ -1,18 +1,16 @@
 /**
  * Firebase Cloud Functions for StuddiSmart
- * Backend Gemini calls (no API key in the browser)
+ * Gemini via Vertex AI (NO API KEYS – Service Account Auth)
  */
 
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 
-const { defineSecret } = require("firebase-functions/params");
 const { GoogleGenAI, Type, Modality } = require("@google/genai");
 
 const cors = require("cors")({
   origin: (origin, cb) => {
-    // Allow requests with no origin (curl, server-to-server)
     if (!origin) return cb(null, true);
 
     const allowlist = [
@@ -32,9 +30,17 @@ const cors = require("cors")({
 
 setGlobalOptions({ region: "us-central1", maxInstances: 10 });
 
-const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+/**
+ * Vertex AI Gemini client (SERVICE ACCOUNT AUTH)
+ * NO API KEYS
+ */
+const ai = new GoogleGenAI({
+  vertexai: true,
+  project: "studywiseai-458aa",
+  location: "us-central1",
+});
 
-// Safely read JSON body even if it comes through as a string
+// Safely read JSON body
 function readJsonBody(req) {
   if (!req.body) return {};
   if (typeof req.body === "object") return req.body;
@@ -50,14 +56,13 @@ function handleError(res, err, friendlyMessage) {
   logger.error(err);
 
   const msg = String(err?.message || "");
-  // Quota / rate limits
-  if (msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("resource_exhausted")) {
+
+  if (msg.includes("429") || msg.toLowerCase().includes("quota")) {
     return res.status(429).json({
-      error: "AI is rate-limited right now. Please wait 30 seconds and try again.",
+      error: "AI is rate-limited right now. Please wait and try again.",
     });
   }
 
-  // CORS debugging (shows up if origin is not allowed)
   if (msg.toLowerCase().includes("cors blocked")) {
     return res.status(403).json({ error: msg });
   }
@@ -68,14 +73,14 @@ function handleError(res, err, friendlyMessage) {
 /**
  * POST /generateStudySet
  */
-exports.generateStudySet = onRequest({ secrets: [GEMINI_API_KEY] }, (req, res) => {
+exports.generateStudySet = onRequest({}, (req, res) => {
   cors(req, res, async () => {
     if (req.method === "OPTIONS") return res.status(204).send("");
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    if (req.method !== "POST")
+      return res.status(405).json({ error: "Method not allowed" });
 
     try {
       const body = readJsonBody(req);
-
       const {
         text = "",
         attachment,
@@ -88,28 +93,24 @@ exports.generateStudySet = onRequest({ secrets: [GEMINI_API_KEY] }, (req, res) =
         return res.status(400).json({ error: "Missing text or attachment." });
       }
 
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
-
-      const fcCount = Number(flashcardCount) || 10;
-      const qCount = Number(quizCount) || 10;
-
       const varietyPrompt = isDifferentSet
-        ? "Provide a fresh perspective and different questions from previous iterations. Avoid common examples."
-        : "Focus on fundamental core concepts and essential definitions.";
+        ? "Provide a fresh perspective and different questions."
+        : "Focus on fundamental core concepts.";
 
-      const systemInstruction = `You are an elite educational synthesis engine.
+      const systemInstruction = `
+You are an elite educational synthesis engine.
 MANDATORY OUTPUT:
-1. Exactly ${fcCount} Flashcards.
-2. Exactly ${qCount} "Quiz" Questions (for practice).
-3. Exactly ${qCount} "Test" Questions (for evaluation).
-IMPORTANT: Quiz and Test questions MUST be different.
-4. Each question must include an explanation and a 'category' tag.
-5. A hierarchical Mindmap.
+1. Exactly ${flashcardCount} Flashcards.
+2. Exactly ${quizCount} Quiz Questions.
+3. Exactly ${quizCount} Test Questions.
+4. Each must include explanation + category.
+5. Include a hierarchical mindmap.
 ${varietyPrompt}
-Return ONLY valid JSON.`;
+Return ONLY valid JSON.
+`;
 
       const parts = [];
-      if (text?.trim()) parts.push({ text: `Source Material:\n${text}` });
+      if (text?.trim()) parts.push({ text: `Source:\n${text}` });
 
       if (attachment?.data && attachment?.mimeType) {
         parts.push({
@@ -131,92 +132,33 @@ Return ONLY valid JSON.`;
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              flashcards: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    question: { type: Type.STRING },
-                    answer: { type: Type.STRING },
-                  },
-                  required: ["question", "answer"],
-                },
-              },
-              quiz: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    question: { type: Type.STRING },
-                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    correctAnswer: { type: Type.STRING },
-                    explanation: { type: Type.STRING },
-                    category: { type: Type.STRING },
-                  },
-                  required: ["question", "options", "correctAnswer", "explanation", "category"],
-                },
-              },
-              test: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    question: { type: Type.STRING },
-                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    correctAnswer: { type: Type.STRING },
-                    explanation: { type: Type.STRING },
-                    category: { type: Type.STRING },
-                  },
-                  required: ["question", "options", "correctAnswer", "explanation", "category"],
-                },
-              },
-              mindmap: {
-                type: Type.OBJECT,
-                properties: {
-                  label: { type: Type.STRING },
-                  content: { type: Type.STRING },
-                  children: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        label: { type: Type.STRING },
-                        content: { type: Type.STRING },
-                        children: {
-                          type: Type.ARRAY,
-                          items: {
-                            type: Type.OBJECT,
-                            properties: {
-                              label: { type: Type.STRING },
-                              content: { type: Type.STRING },
-                            },
-                            required: ["label", "content"],
-                          },
-                        },
-                      },
-                      required: ["label", "content"],
-                    },
-                  },
-                },
-                required: ["label", "content"],
-              },
+              flashcards: { type: Type.ARRAY },
+              quiz: { type: Type.ARRAY },
+              test: { type: Type.ARRAY },
+              mindmap: { type: Type.OBJECT },
             },
             required: ["flashcards", "quiz", "test", "mindmap"],
           },
         },
       });
 
-      const textOutput = response.text;
-      if (!textOutput) return res.status(502).json({ error: "AI returned empty synthesis." });
-
-      const data = JSON.parse(textOutput);
+      const data = JSON.parse(response.text);
       const now = Date.now();
 
       return res.status(200).json({
-        flashcards: (data.flashcards || []).map((c, i) => ({ ...c, id: `fc-${i}-${now}` })),
-        quiz: (data.quiz || []).map((q, i) => ({ ...q, id: `quiz-${i}-${now}` })),
-        test: (data.test || []).map((t, i) => ({ ...t, id: `test-${i}-${now}` })),
-        mindmap: data.mindmap || { label: "Main Topic", content: "Main topic summary", children: [] },
+        flashcards: data.flashcards.map((c, i) => ({
+          ...c,
+          id: `fc-${i}-${now}`,
+        })),
+        quiz: data.quiz.map((q, i) => ({
+          ...q,
+          id: `quiz-${i}-${now}`,
+        })),
+        test: data.test.map((t, i) => ({
+          ...t,
+          id: `test-${i}-${now}`,
+        })),
+        mindmap: data.mindmap,
       });
     } catch (err) {
       return handleError(res, err, "AI generation failed.");
@@ -226,48 +168,34 @@ Return ONLY valid JSON.`;
 
 /**
  * POST /chat
- * Body: { messages: [{role:"user"|"model", text:string}], topicContext?: string }
- * Returns: { text: string }
  */
-exports.chat = onRequest({ secrets: [GEMINI_API_KEY] }, (req, res) => {
+exports.chat = onRequest({}, (req, res) => {
   cors(req, res, async () => {
     if (req.method === "OPTIONS") return res.status(204).send("");
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    if (req.method !== "POST")
+      return res.status(405).json({ error: "Method not allowed" });
 
     try {
       const body = readJsonBody(req);
       const { messages = [], topicContext = "" } = body;
 
-      if (!Array.isArray(messages) || messages.length === 0) {
-        return res.status(400).json({ error: "Missing messages array." });
+      if (!messages.length) {
+        return res.status(400).json({ error: "Missing messages." });
       }
-
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
-
-      const systemInstruction = `You are StuddiChat, the brilliant AI tutor for StuddiSmart.
-Your job is to help users learn clearly and fast.
-
-MANDATORY FORMATTING:
-- Use clear section headers when helpful.
-- Use numbered lists (1., 2., 3.) for steps.
-- Use bullet points for key facts.
-- Use **bold** for critical terms.
-- Keep answers concise and encouraging.
-
-${topicContext ? `Current study topic: ${topicContext}` : "No specific topic selected yet."}`;
-
-      const contents = messages.map((m) => ({
-        role: m.role === "model" ? "model" : "user",
-        parts: [{ text: String(m.text || "") }],
-      }));
 
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
-        contents,
+        contents: messages.map((m) => ({
+          role: m.role === "model" ? "model" : "user",
+          parts: [{ text: m.text }],
+        })),
         config: {
-          systemInstruction,
+          systemInstruction: `
+You are StuddiChat, an expert tutor.
+Use bullets, numbered steps, and **bold** keywords.
+${topicContext ? `Topic: ${topicContext}` : ""}
+`,
           temperature: 0.7,
-          topP: 0.9,
           maxOutputTokens: 900,
         },
       });
@@ -280,88 +208,18 @@ ${topicContext ? `Current study topic: ${topicContext}` : "No specific topic sel
 });
 
 /**
- * POST /insights
- * Body: { question: string, answer: string }
- * Returns: TutorExplanation JSON
- */
-exports.insights = onRequest({ secrets: [GEMINI_API_KEY] }, (req, res) => {
-  cors(req, res, async () => {
-    if (req.method === "OPTIONS") return res.status(204).send("");
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-    try {
-      const body = readJsonBody(req);
-      const { question = "", answer = "" } = body;
-
-      if (!question.trim() || !answer.trim()) {
-        return res.status(400).json({ error: "Missing question or answer." });
-      }
-
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
-
-      const systemInstruction = `You are a world-class academic tutor.
-Explain simply, provide a real-world example, list key takeaways, common mistakes, and a knowledge check.
-MANDATORY: quickCheck MUST contain exactly 5 question/answer pairs.
-Return ONLY valid JSON.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: { parts: [{ text: `Topic:\nQ: ${question}\nA: ${answer}` }] },
-        config: {
-          systemInstruction,
-          responseMimeType: "application/json",
-          thinkingConfig: { thinkingBudget: 0 },
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              simpleExplanation: { type: Type.STRING },
-              realWorldExample: { type: Type.STRING },
-              keyCommands: { type: Type.ARRAY, items: { type: Type.STRING } },
-              commonMistakes: { type: Type.ARRAY, items: { type: Type.STRING } },
-              quickCheck: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    question: { type: Type.STRING },
-                    answer: { type: Type.STRING },
-                  },
-                  required: ["question", "answer"],
-                },
-              },
-            },
-            required: ["simpleExplanation", "realWorldExample", "keyCommands", "commonMistakes", "quickCheck"],
-          },
-        },
-      });
-
-      const textOutput = response.text;
-      if (!textOutput) return res.status(502).json({ error: "AI returned empty insights." });
-
-      return res.status(200).json(JSON.parse(textOutput));
-    } catch (err) {
-      return handleError(res, err, "Insights generation failed.");
-    }
-  });
-});
-
-/**
  * POST /tts
- * Body: { text: string }
- * Returns: { audioBase64: string }
  */
-exports.tts = onRequest({ secrets: [GEMINI_API_KEY] }, (req, res) => {
+exports.tts = onRequest({}, (req, res) => {
   cors(req, res, async () => {
     if (req.method === "OPTIONS") return res.status(204).send("");
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    if (req.method !== "POST")
+      return res.status(405).json({ error: "Method not allowed" });
 
     try {
-      const body = readJsonBody(req);
-      const { text = "" } = body;
-
-      if (!text.trim()) return res.status(400).json({ error: "Missing text." });
-
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+      const { text = "" } = readJsonBody(req);
+      if (!text.trim())
+        return res.status(400).json({ error: "Missing text." });
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
@@ -369,13 +227,18 @@ exports.tts = onRequest({ secrets: [GEMINI_API_KEY] }, (req, res) => {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: "Zephyr" },
+            },
           },
         },
       });
 
-      const audioBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!audioBase64) return res.status(502).json({ error: "Audio generation failed." });
+      const audioBase64 =
+        response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+
+      if (!audioBase64)
+        return res.status(502).json({ error: "Audio generation failed." });
 
       return res.status(200).json({ audioBase64 });
     } catch (err) {

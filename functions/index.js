@@ -1,6 +1,6 @@
 /**
  * Firebase Cloud Functions for StuddiSmart
- * Backend Gemini calls (no API key in the browser)
+ * Backend Gemini calls (NO API key in the browser)
  */
 
 const { setGlobalOptions } = require("firebase-functions");
@@ -10,6 +10,14 @@ const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 const { GoogleGenAI, Type, Modality } = require("@google/genai");
 
+setGlobalOptions({ maxInstances: 10 });
+
+const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+
+/**
+ * CORS middleware (IMPORTANT)
+ * Must explicitly handle preflight and allow Authorization header.
+ */
 const cors = require("cors")({
   origin: [
     "https://studdismart.com",
@@ -19,51 +27,32 @@ const cors = require("cors")({
   ],
   methods: ["POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: false,
 });
 
-setGlobalOptions({ maxInstances: 10 });
+function runWithCors(handler) {
+  return (req, res) =>
+    cors(req, res, async () => {
+      // Handle preflight explicitly
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      return handler(req, res);
+    });
+}
 
-const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
-
-// -------- helpers --------
 function isQuotaError(err) {
-  const msg = err?.message ? String(err.message) : "";
+  const msg = String(err?.message || "");
   return msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("resource_exhausted");
 }
 
-function handlePreflightAndCors(req, res, handler) {
-  cors(req, res, async () => {
-    // Preflight request
-    if (req.method === "OPTIONS") {
-      return res.status(204).send("");
-    }
-
-    // Only allow POST
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
-
-    try {
-      await handler();
-    } catch (err) {
-      logger.error(err);
-      if (isQuotaError(err)) {
-        return res.status(429).json({
-          error: "AI is rate-limited right now. Please wait 30 seconds and try again.",
-        });
-      }
-      return res.status(500).json({ error: "Server error." });
-    }
-  });
-}
-
-// -------------------------
-// POST /generateStudySet
-// -------------------------
+/**
+ * POST /generateStudySet
+ */
 exports.generateStudySet = onRequest(
-  { secrets: [GEMINI_API_KEY] },
-  (req, res) =>
-    handlePreflightAndCors(req, res, async () => {
+  { secrets: [GEMINI_API_KEY], cors: false },
+  runWithCors(async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
       const {
         text = "",
         attachment,
@@ -97,15 +86,11 @@ ${varietyPrompt}
 Return ONLY valid JSON.`;
 
       const parts = [];
-
       if (text?.trim()) parts.push({ text: `Source Material:\n${text}` });
 
       if (attachment?.data && attachment?.mimeType) {
         parts.push({
-          inlineData: {
-            data: attachment.data,
-            mimeType: attachment.mimeType,
-          },
+          inlineData: { data: attachment.data, mimeType: attachment.mimeType },
         });
       }
 
@@ -196,9 +181,7 @@ Return ONLY valid JSON.`;
       });
 
       const textOutput = response.text;
-      if (!textOutput) {
-        return res.status(502).json({ error: "AI returned empty synthesis." });
-      }
+      if (!textOutput) return res.status(502).json({ error: "AI returned empty synthesis." });
 
       const data = JSON.parse(textOutput);
       const now = Date.now();
@@ -209,20 +192,26 @@ Return ONLY valid JSON.`;
         test: (data.test || []).map((t, i) => ({ ...t, id: `test-${i}-${now}` })),
         mindmap: data.mindmap || { label: "Main Topic", content: "Main topic summary", children: [] },
       });
-    })
+    } catch (err) {
+      logger.error("generateStudySet error:", err);
+      if (isQuotaError(err)) {
+        return res.status(429).json({ error: "AI is rate-limited right now. Please wait 30 seconds and try again." });
+      }
+      return res.status(500).json({ error: "AI generation failed." });
+    }
+  })
 );
 
-// -------------------------
-// POST /chat
-// Body: { messages: [{role:"user"|"model", text:string}], topicContext?: string }
-// Returns: { text: string }
-// -------------------------
+/**
+ * POST /chat
+ */
 exports.chat = onRequest(
-  { secrets: [GEMINI_API_KEY] },
-  (req, res) =>
-    handlePreflightAndCors(req, res, async () => {
-      const { messages = [], topicContext = "" } = req.body || {};
+  { secrets: [GEMINI_API_KEY], cors: false },
+  runWithCors(async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+      const { messages = [], topicContext = "" } = req.body || {};
       if (!Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Missing messages array." });
       }
@@ -258,20 +247,26 @@ ${topicContext ? `Current study topic: ${topicContext}` : "No specific topic sel
       });
 
       return res.status(200).json({ text: response.text || "" });
-    })
+    } catch (err) {
+      logger.error("chat error:", err);
+      if (isQuotaError(err)) {
+        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
+      }
+      return res.status(500).json({ error: "Chat generation failed." });
+    }
+  })
 );
 
-// -------------------------
-// POST /insights
-// Body: { question: string, answer: string }
-// Returns: TutorExplanation JSON
-// -------------------------
+/**
+ * POST /insights
+ */
 exports.insights = onRequest(
-  { secrets: [GEMINI_API_KEY] },
-  (req, res) =>
-    handlePreflightAndCors(req, res, async () => {
-      const { question = "", answer = "" } = req.body || {};
+  { secrets: [GEMINI_API_KEY], cors: false },
+  runWithCors(async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+      const { question = "", answer = "" } = req.body || {};
       if (!question.trim() || !answer.trim()) {
         return res.status(400).json({ error: "Missing question or answer." });
       }
@@ -317,20 +312,26 @@ Return ONLY valid JSON.`;
       const textOutput = response.text;
       if (!textOutput) return res.status(502).json({ error: "AI returned empty insights." });
 
-      const data = JSON.parse(textOutput);
-      return res.status(200).json(data);
-    })
+      return res.status(200).json(JSON.parse(textOutput));
+    } catch (err) {
+      logger.error("insights error:", err);
+      if (isQuotaError(err)) {
+        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
+      }
+      return res.status(500).json({ error: "Insights generation failed." });
+    }
+  })
 );
 
-// -------------------------
-// POST /tts
-// Body: { text: string }
-// Returns: { audioBase64: string }
-// -------------------------
+/**
+ * POST /tts
+ */
 exports.tts = onRequest(
-  { secrets: [GEMINI_API_KEY] },
-  (req, res) =>
-    handlePreflightAndCors(req, res, async () => {
+  { secrets: [GEMINI_API_KEY], cors: false },
+  runWithCors(async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
       const { text = "" } = req.body || {};
       if (!text.trim()) return res.status(400).json({ error: "Missing text." });
 
@@ -341,9 +342,7 @@ exports.tts = onRequest(
         contents: [{ parts: [{ text: `Speak clearly: ${text}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
-          },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } } },
         },
       });
 
@@ -351,5 +350,12 @@ exports.tts = onRequest(
       if (!audioBase64) return res.status(502).json({ error: "Audio generation failed." });
 
       return res.status(200).json({ audioBase64 });
-    })
+    } catch (err) {
+      logger.error("tts error:", err);
+      if (isQuotaError(err)) {
+        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
+      }
+      return res.status(500).json({ error: "TTS generation failed." });
+    }
+  })
 );

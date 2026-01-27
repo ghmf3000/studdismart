@@ -8,7 +8,7 @@ const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 
 const { defineSecret } = require("firebase-functions/params");
-const { GoogleGenAI, Type } = require("@google/genai");
+const { GoogleGenAI, Type, Modality } = require("@google/genai");
 
 setGlobalOptions({ maxInstances: 10 });
 
@@ -181,6 +181,177 @@ Return ONLY valid JSON.`;
       }
 
       return res.status(500).json({ error: "AI generation failed." });
+    }
+  }
+);
+/**
+ * POST /chat
+ * Body: { messages: [{role:"user"|"model", text:string}], topicContext?: string }
+ * Returns: { text: string }
+ */
+exports.chat = onRequest(
+  { secrets: [GEMINI_API_KEY], cors: true },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+      const { messages = [], topicContext = "" } = req.body || {};
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "Missing messages array." });
+      }
+
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+
+      const systemInstruction = `You are StuddiChat, the brilliant AI tutor for StuddiSmart.
+Your job is to help users learn clearly and fast.
+
+MANDATORY FORMATTING:
+- Use clear section headers when helpful.
+- Use numbered lists (1., 2., 3.) for steps.
+- Use bullet points for key facts.
+- Use **bold** for critical terms.
+- Keep answers concise and encouraging.
+
+${topicContext ? `Current study topic: ${topicContext}` : "No specific topic selected yet."}`;
+
+      const contents = messages.map((m) => ({
+        role: m.role === "model" ? "model" : "user",
+        parts: [{ text: m.text || "" }],
+      }));
+
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+          topP: 0.9,
+          maxOutputTokens: 900,
+        },
+      });
+
+      return res.status(200).json({ text: response.text || "" });
+    } catch (err) {
+      logger.error(err);
+      const msg = err?.message || "";
+      if (String(msg).includes("429") || String(msg).toLowerCase().includes("quota")) {
+        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
+      }
+      return res.status(500).json({ error: "Chat generation failed." });
+    }
+  }
+);
+
+/**
+ * POST /insights
+ * Body: { question: string, answer: string }
+ * Returns: TutorExplanation JSON
+ */
+exports.insights = onRequest(
+  { secrets: [GEMINI_API_KEY], cors: true },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+      const { question = "", answer = "" } = req.body || {};
+      if (!question.trim() || !answer.trim()) {
+        return res.status(400).json({ error: "Missing question or answer." });
+      }
+
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+
+      const systemInstruction = `You are a world-class academic tutor.
+Explain simply, provide a real-world example, list key takeaways, common mistakes, and a knowledge check.
+MANDATORY: quickCheck MUST contain exactly 5 question/answer pairs.
+Return ONLY valid JSON.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: { parts: [{ text: `Topic:\nQ: ${question}\nA: ${answer}` }] },
+        config: {
+          systemInstruction,
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingBudget: 0 },
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              simpleExplanation: { type: Type.STRING },
+              realWorldExample: { type: Type.STRING },
+              keyCommands: { type: Type.ARRAY, items: { type: Type.STRING } },
+              commonMistakes: { type: Type.ARRAY, items: { type: Type.STRING } },
+              quickCheck: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    question: { type: Type.STRING },
+                    answer: { type: Type.STRING },
+                  },
+                  required: ["question", "answer"],
+                },
+              },
+            },
+            required: ["simpleExplanation", "realWorldExample", "keyCommands", "commonMistakes", "quickCheck"],
+          },
+        },
+      });
+
+      const textOutput = response.text;
+      if (!textOutput) return res.status(502).json({ error: "AI returned empty insights." });
+
+      const data = JSON.parse(textOutput);
+      return res.status(200).json(data);
+    } catch (err) {
+      logger.error(err);
+      const msg = err?.message || "";
+      if (String(msg).includes("429") || String(msg).toLowerCase().includes("quota")) {
+        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
+      }
+      return res.status(500).json({ error: "Insights generation failed." });
+    }
+  }
+);
+
+/**
+ * POST /tts
+ * Body: { text: string }
+ * Returns: { audioBase64: string }
+ */
+exports.tts = onRequest(
+  { secrets: [GEMINI_API_KEY], cors: true },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+      const { text = "" } = req.body || {};
+      if (!text.trim()) return res.status(400).json({ error: "Missing text." });
+
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: `Speak clearly: ${text}` }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
+          },
+        },
+      });
+
+      const audioBase64 =
+        response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+
+      if (!audioBase64) return res.status(502).json({ error: "Audio generation failed." });
+
+      return res.status(200).json({ audioBase64 });
+    } catch (err) {
+      logger.error(err);
+      const msg = err?.message || "";
+      if (String(msg).includes("429") || String(msg).toLowerCase().includes("quota")) {
+        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
+      }
+      return res.status(500).json({ error: "TTS generation failed." });
     }
   }
 );

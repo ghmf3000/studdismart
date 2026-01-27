@@ -9,6 +9,7 @@ export interface GenerationInput {
   };
   flashcardCount?: number;
   quizCount?: number;
+  testCount?: number;
   isDifferentSet?: boolean;
 }
 
@@ -50,7 +51,6 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> =>
         status === 'UNAVAILABLE';
 
       if (isQuotaError && i === maxRetries - 1) {
-        // If we still fail on quota after retries, throw specific error
         throw new QuotaExceededError("You've reached the AI synthesis limit for this session. Please wait a few minutes or upgrade to bypass tier restrictions.");
       }
 
@@ -76,6 +76,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
     
     const fcCount = input.flashcardCount || 10;
     const qCount = input.quizCount || 10;
+    const tCount = input.testCount || 10;
     const varietyPrompt = input.isDifferentSet 
       ? "Provide a fresh perspective and different questions from previous iterations. Avoid common examples." 
       : "Focus on fundamental core concepts and essential definitions.";
@@ -84,7 +85,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
     MANDATORY OUTPUT:
     1. Exactly ${fcCount} Flashcards.
     2. Exactly ${qCount} "Quiz" Questions (for practice).
-    3. Exactly ${qCount} "Test" Questions (for evaluation). 
+    3. Exactly ${tCount} "Test" Questions (for evaluation). 
     IMPORTANT: Quiz and Test questions MUST be different.
     4. Each question must include an explanation and a 'category' tag.
     5. A hierarchical Mindmap.
@@ -200,12 +201,11 @@ export const generateChatResponse = async (messages: ChatMessage[], topicContext
     Your goal is to help users understand complex academic topics.
     
     MANDATORY FORMATTING:
-    - Use highly structured answers with clear sections.
-    - ALWAYS use numbered lists (1. , 2. , 3. ) for sequential steps, logic, or points.
-    - Use bullet points for features, facts, or attributes.
-    - Use **bold text** for core concepts and critical terms.
-    - Maintain strict chronological order in historical or process-based explanations.
-    - Keep answers concise, professional, and encouraging.
+    - ALWAYS use numbered lists (1. , 2. , 3. ) for explanations, steps, or multi-point answers.
+    - Use clear headings for different parts of your answer.
+    - Use bullet points for additional details under numbered items.
+    - Use **bold text** for key terminology.
+    - Keep answers highly structured, professional, and encouraging.
     
     ${topicContext ? `The current study topic is: ${topicContext}` : 'No specific topic selected yet.'}
     If the user asks about something unrelated to learning, gently guide them back to their studies.`;
@@ -222,7 +222,7 @@ export const generateChatResponse = async (messages: ChatMessage[], topicContext
         systemInstruction,
         temperature: 0.7,
         topP: 0.9,
-        maxOutputTokens: 800,
+        maxOutputTokens: 1000,
       }
     });
 

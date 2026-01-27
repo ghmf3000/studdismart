@@ -211,6 +211,7 @@ const AppInner: React.FC = () => {
   const [input, setInput] = useState("");
   const [flashcardCount, setFlashcardCount] = useState(10);
   const [quizCount, setQuizCount] = useState(10);
+  const [testCount, setTestCount] = useState(10);
   const [status, setStatus] = useState<GenerationStep>(GenerationStep.IDLE);
   const [generationErrorMessage, setGenerationErrorMessage] = useState("");
   const [isQuotaError, setIsQuotaError] = useState(false);
@@ -471,12 +472,14 @@ const AppInner: React.FC = () => {
     try {
       const fcNum = flashcardCount || 10;
       const qNum = quizCount || 10;
+      const tNum = testCount || 10;
 
       const studySet = await generateStudySet({
         text: input,
         attachment: selectedDoc ? { data: selectedDoc.data, mimeType: selectedDoc.mimeType } : undefined,
         flashcardCount: fcNum,
         quizCount: qNum,
+        testCount: tNum,
         isDifferentSet: isDifferent 
       });
 
@@ -552,7 +555,7 @@ const AppInner: React.FC = () => {
     if (!chatInput.trim() || isChatLoading) return;
     
     if (user?.tier !== 'pro' && freeChatCount >= 5) {
-      const upgrade = confirm("StuddiChat Limit Reached (Free Tier). Would you like to Signup or Subscribe for unlimited academic interaction?");
+      const upgrade = confirm("StuddiChat Limit Reached (Free Tier). Would you like to Signup and subscribe for unlimited academic interaction?");
       if (upgrade) setView("pricing");
       return;
     }
@@ -593,8 +596,8 @@ const AppInner: React.FC = () => {
   };
 
   const handleNewChat = () => {
-    if (confirm("Are you sure you want to clear this conversation?")) {
-      setChatMessages([{ role: 'model', text: `Chat reset. How can I help you with your academic goals?`, timestamp: Date.now() }]);
+    if (confirm("Clear this conversation and start fresh?")) {
+      setChatMessages([{ role: 'model', text: `Chat history cleared. How can I assist your learning today?`, timestamp: Date.now() }]);
     }
   };
 
@@ -796,34 +799,49 @@ const AppInner: React.FC = () => {
                 <textarea className="w-full h-32 md:h-60 bg-transparent outline-none resize-none text-base md:text-2xl font-bold placeholder:text-slate-300 text-slate-900 dark:text-slate-100" placeholder="Type your topic here or upload documents..." value={input} onChange={(e) => setInput(e.target.value)} />
                 
                 {user?.tier === 'pro' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8 py-4 md:py-6 border-t border-slate-200 dark:border-slate-800">
-                    <div className="space-y-3 md:space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 py-4 md:py-6 border-t border-slate-200 dark:border-slate-800">
+                    <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <label className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">Flashcard Count</label>
                         <span className="text-[10px] md:text-xs font-black text-red-500">{flashcardCount}</span>
                       </div>
                       <input 
                         type="range" 
-                        min="5" 
-                        max="50" 
+                        min="10" 
+                        max="100" 
                         step="5"
                         value={flashcardCount} 
                         onChange={(e) => setFlashcardCount(parseInt(e.target.value))}
                         className="w-full accent-red-600"
                       />
                     </div>
-                    <div className="space-y-3 md:space-y-4">
+                    <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <label className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">Quiz Count</label>
                         <span className="text-[10px] md:text-xs font-black text-red-500">{quizCount}</span>
                       </div>
                       <input 
                         type="range" 
-                        min="3" 
-                        max="30" 
-                        step="3"
+                        min="10" 
+                        max="100" 
+                        step="5"
                         value={quizCount} 
                         onChange={(e) => setQuizCount(parseInt(e.target.value))}
+                        className="w-full accent-red-600"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">Test Count</label>
+                        <span className="text-[10px] md:text-xs font-black text-red-500">{testCount}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="10" 
+                        max="100" 
+                        step="5"
+                        value={testCount} 
+                        onChange={(e) => setTestCount(parseInt(e.target.value))}
                         className="w-full accent-red-600"
                       />
                     </div>
@@ -834,7 +852,7 @@ const AppInner: React.FC = () => {
                 
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 pt-4 md:pt-8 border-t border-slate-200">
                   <Button variant="secondary" className="h-12 md:h-14 px-6 md:px-8 rounded-none" onClick={() => fileInputRef.current?.click()}>Upload</Button>
-                  <input type="file" min="5" max="50" step="5" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,text/plain" onChange={handleFileChange} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,text/plain" onChange={handleFileChange} />
                   <div className="flex flex-col sm:flex-row flex-1 gap-2 md:gap-3">
                     <Button className="flex-1 h-12 md:h-14 text-sm md:text-lg rounded-none" onClick={() => handleGenerate(false)}>Generate Study Set</Button>
                     {user?.tier === 'pro' && cards.length > 0 && (
@@ -1279,8 +1297,9 @@ const AppInner: React.FC = () => {
                   <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$9.99<span className="text-sm font-bold text-slate-400">/month</span></div>
                 </div>
                 <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
-                  <li>• Unlimited flashcards (up to 50/set)</li>
-                  <li>• Unlimited quizzes (up to 30/set)</li>
+                  <li>• Unlimited flashcards (up to 100/set)</li>
+                  <li>• Unlimited quizzes (up to 100/set)</li>
+                  <li>• Unlimited tests (up to 100/set)</li>
                   <li>• Unlimited StuddiChat interactions</li>
                   <li>• Full AI Synthesis access</li>
                 </ul>

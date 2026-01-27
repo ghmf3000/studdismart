@@ -10,21 +10,60 @@ const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 const { GoogleGenAI, Type, Modality } = require("@google/genai");
 
+const cors = require("cors")({
+  origin: [
+    "https://studdismart.com",
+    "https://www.studdismart.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ],
+  methods: ["POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+});
+
 setGlobalOptions({ maxInstances: 10 });
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
-exports.generateStudySet = onRequest(
-  {
-    secrets: [GEMINI_API_KEY],
-    cors: true,
-  },
-  async (req, res) => {
-    try {
-      if (req.method !== "POST") {
-        return res.status(405).json({ error: "Method not allowed" });
-      }
+// -------- helpers --------
+function isQuotaError(err) {
+  const msg = err?.message ? String(err.message) : "";
+  return msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("resource_exhausted");
+}
 
+function handlePreflightAndCors(req, res, handler) {
+  cors(req, res, async () => {
+    // Preflight request
+    if (req.method === "OPTIONS") {
+      return res.status(204).send("");
+    }
+
+    // Only allow POST
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    try {
+      await handler();
+    } catch (err) {
+      logger.error(err);
+      if (isQuotaError(err)) {
+        return res.status(429).json({
+          error: "AI is rate-limited right now. Please wait 30 seconds and try again.",
+        });
+      }
+      return res.status(500).json({ error: "Server error." });
+    }
+  });
+}
+
+// -------------------------
+// POST /generateStudySet
+// -------------------------
+exports.generateStudySet = onRequest(
+  { secrets: [GEMINI_API_KEY] },
+  (req, res) =>
+    handlePreflightAndCors(req, res, async () => {
       const {
         text = "",
         attachment,
@@ -170,32 +209,20 @@ Return ONLY valid JSON.`;
         test: (data.test || []).map((t, i) => ({ ...t, id: `test-${i}-${now}` })),
         mindmap: data.mindmap || { label: "Main Topic", content: "Main topic summary", children: [] },
       });
-    } catch (err) {
-      logger.error(err);
-      // Friendly 429 (quota/rate limits) handling
-      const msg = err?.message || "";
-      if (String(msg).includes("429") || String(msg).toLowerCase().includes("quota")) {
-        return res.status(429).json({
-          error: "AI is rate-limited right now. Please wait 30 seconds and try again.",
-        });
-      }
-
-      return res.status(500).json({ error: "AI generation failed." });
-    }
-  }
+    })
 );
-/**
- * POST /chat
- * Body: { messages: [{role:"user"|"model", text:string}], topicContext?: string }
- * Returns: { text: string }
- */
-exports.chat = onRequest(
-  { secrets: [GEMINI_API_KEY], cors: true },
-  async (req, res) => {
-    try {
-      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+// -------------------------
+// POST /chat
+// Body: { messages: [{role:"user"|"model", text:string}], topicContext?: string }
+// Returns: { text: string }
+// -------------------------
+exports.chat = onRequest(
+  { secrets: [GEMINI_API_KEY] },
+  (req, res) =>
+    handlePreflightAndCors(req, res, async () => {
       const { messages = [], topicContext = "" } = req.body || {};
+
       if (!Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Missing messages array." });
       }
@@ -231,29 +258,20 @@ ${topicContext ? `Current study topic: ${topicContext}` : "No specific topic sel
       });
 
       return res.status(200).json({ text: response.text || "" });
-    } catch (err) {
-      logger.error(err);
-      const msg = err?.message || "";
-      if (String(msg).includes("429") || String(msg).toLowerCase().includes("quota")) {
-        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
-      }
-      return res.status(500).json({ error: "Chat generation failed." });
-    }
-  }
+    })
 );
 
-/**
- * POST /insights
- * Body: { question: string, answer: string }
- * Returns: TutorExplanation JSON
- */
+// -------------------------
+// POST /insights
+// Body: { question: string, answer: string }
+// Returns: TutorExplanation JSON
+// -------------------------
 exports.insights = onRequest(
-  { secrets: [GEMINI_API_KEY], cors: true },
-  async (req, res) => {
-    try {
-      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
+  { secrets: [GEMINI_API_KEY] },
+  (req, res) =>
+    handlePreflightAndCors(req, res, async () => {
       const { question = "", answer = "" } = req.body || {};
+
       if (!question.trim() || !answer.trim()) {
         return res.status(400).json({ error: "Missing question or answer." });
       }
@@ -301,28 +319,18 @@ Return ONLY valid JSON.`;
 
       const data = JSON.parse(textOutput);
       return res.status(200).json(data);
-    } catch (err) {
-      logger.error(err);
-      const msg = err?.message || "";
-      if (String(msg).includes("429") || String(msg).toLowerCase().includes("quota")) {
-        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
-      }
-      return res.status(500).json({ error: "Insights generation failed." });
-    }
-  }
+    })
 );
 
-/**
- * POST /tts
- * Body: { text: string }
- * Returns: { audioBase64: string }
- */
+// -------------------------
+// POST /tts
+// Body: { text: string }
+// Returns: { audioBase64: string }
+// -------------------------
 exports.tts = onRequest(
-  { secrets: [GEMINI_API_KEY], cors: true },
-  async (req, res) => {
-    try {
-      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
+  { secrets: [GEMINI_API_KEY] },
+  (req, res) =>
+    handlePreflightAndCors(req, res, async () => {
       const { text = "" } = req.body || {};
       if (!text.trim()) return res.status(400).json({ error: "Missing text." });
 
@@ -339,19 +347,9 @@ exports.tts = onRequest(
         },
       });
 
-      const audioBase64 =
-        response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
+      const audioBase64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (!audioBase64) return res.status(502).json({ error: "Audio generation failed." });
 
       return res.status(200).json({ audioBase64 });
-    } catch (err) {
-      logger.error(err);
-      const msg = err?.message || "";
-      if (String(msg).includes("429") || String(msg).toLowerCase().includes("quota")) {
-        return res.status(429).json({ error: "AI is rate-limited. Please wait 30 seconds and try again." });
-      }
-      return res.status(500).json({ error: "TTS generation failed." });
-    }
-  }
+    })
 );

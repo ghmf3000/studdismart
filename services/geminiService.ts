@@ -1,3 +1,5 @@
+
+// services/geminiService.ts
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Flashcard, QuizQuestion, MindmapNode, TutorExplanation, StudySet, ChatMessage } from "../types";
 
@@ -69,10 +71,12 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> =>
   throw new Error(finalMessage);
 };
 
+// Fixed generateStudySet to strictly follow Gemini 3 Pro guidelines
 export const generateStudySet = async (input: GenerationInput): Promise<StudySet> => {
   return withRetry(async () => {
+    // Guidelines: Always initialize GoogleGenAI inside the function to ensure the latest API key is used
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const modelName = 'gemini-3-flash-preview';
+    const modelName = 'gemini-3-pro-preview';
     
     const fcCount = input.flashcardCount || 10;
     const qCount = input.quizCount || 10;
@@ -166,7 +170,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
                     properties: {
                       label: { type: Type.STRING },
                       content: { type: Type.STRING },
-                      children: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, content: {type: Type.STRING} }, required: ["label", "content"] } }
+                      children: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, content: {type: Type.STRING} } } }
                     },
                     required: ["label", "content"]
                   }
@@ -180,6 +184,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
       }
     });
 
+    // Guidelines: Access .text property directly
     const textOutput = response.text;
     if (!textOutput) throw new Error("AI returned empty synthesis.");
     const data = JSON.parse(textOutput);
@@ -196,7 +201,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
 export const generateChatResponse = async (messages: ChatMessage[], topicContext?: string): Promise<string> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const modelName = 'gemini-3-flash-preview';
+    const modelName = 'gemini-3-pro-preview';
 
     const systemInstruction = `You are StuddiChat, the brilliant AI tutor for StuddiSmart. 
     Your goal is to help users understand complex academic topics.
@@ -223,10 +228,10 @@ export const generateChatResponse = async (messages: ChatMessage[], topicContext
         systemInstruction,
         temperature: 0.7,
         topP: 0.9,
-        maxOutputTokens: 1000,
       }
     });
 
+    // Guidelines: Access .text property directly
     return response.text || "I'm sorry, I couldn't synthesize a response.";
   });
 };
@@ -240,7 +245,7 @@ export const fetchTutorInsights = async (question: string, answer: string): Prom
     Output valid JSON only.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: { parts: [{ text: `Topic:\nQ: ${question}\nA: ${answer}` }] },
       config: {
         systemInstruction,
@@ -269,6 +274,7 @@ export const fetchTutorInsights = async (question: string, answer: string): Prom
         }
       }
     });
+    // Guidelines: Access .text property directly
     const textOutput = response.text;
     if (!textOutput) throw new Error("AI returned empty insights.");
     return JSON.parse(textOutput);
@@ -289,6 +295,7 @@ export const generateAudio = async (text: string): Promise<string> => {
       },
     });
 
+    // Guidelines: Audio bytes from candidates[0].content.parts[0].inlineData.data
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64Audio) throw new Error("Audio generation failed.");
     return base64Audio;

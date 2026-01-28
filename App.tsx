@@ -45,12 +45,10 @@ interface ErrorBoundaryState {
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState;
-  public props: ErrorBoundaryProps;
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: undefined };
-    this.props = props;
   }
 
   static getDerivedStateFromError(error: any) {
@@ -81,7 +79,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    return this.props.children;
+    return this.props.children || null;
   }
 }
 
@@ -102,7 +100,7 @@ const ListenButton: React.FC<{ onListen: () => void; isPlaying: boolean }> = ({
     }`}
     type="button"
   >
-    <div className={`w-1.5 h-1.5 rounded-full ${isPlaying ? "bg-white animate-pulse" : "bg-red-500"}`} />
+    <div className={`w-1.5 h-1.5 rounded-full ${isPlaying ? "bg-white animate-pulse" : "bg-red-500"}`}></div>
     {isPlaying ? "Playing" : "Listen"}
   </button>
 );
@@ -120,8 +118,8 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
     <div className={`relative transition-all duration-300 ${!isRoot ? "ml-4 md:ml-12 mt-4 md:mt-6" : "flex flex-col items-center"}`}>
       {!isRoot && (
         <>
-          <div className="absolute -left-3 md:-left-6 -top-12 md:-top-16 bottom-5 md:bottom-7 w-px bg-slate-200 dark:bg-purple-800" />
-          <div className="absolute -left-3 md:-left-6 top-6 md:top-8 w-3 md:w-6 h-px bg-slate-200 dark:bg-purple-800" />
+          <div className="absolute -left-3 md:-left-6 -top-12 md:-top-16 bottom-5 md:bottom-7 w-px bg-slate-200 dark:bg-purple-800"></div>
+          <div className="absolute -left-3 md:-left-6 top-6 md:top-8 w-3 md:w-6 h-px bg-slate-200 dark:bg-purple-800"></div>
         </>
       )}
 
@@ -142,7 +140,7 @@ const MindmapNodeView: React.FC<{ node: MindmapNode; depth?: number }> = ({
         ) : (
           <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full transition-all duration-300 ${
             isOpen && (hasChildren || hasContent) ? "bg-purple-500 scale-125" : "bg-slate-300 dark:bg-slate-600 group-hover:bg-purple-500"
-          }`} />
+          }`}></div>
         )}
 
         <span className={`whitespace-nowrap ${isRoot ? "font-black text-xs md:text-lg" : "font-bold text-[10px] md:text-sm"}`}>
@@ -526,19 +524,33 @@ const AppInner: React.FC = () => {
       }
       const audioCtx = audioContextRef.current;
       if (audioCtx.state === "suspended") await audioCtx.resume();
-      const raw = atob(base64Audio);
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      const pcm16 = new Int16Array(bytes.buffer);
-      const buffer = audioCtx.createBuffer(1, pcm16.length, 24000);
       
-      const channelData = buffer.getChannelData(0);
-      for (let i = 0; i < pcm16.length; i++) {
-        channelData[i] = pcm16[i] / 32768.0;
-      }
+      const decode = (base64: string) => {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+      };
 
+      const decodeAudioData = async (data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> => {
+        const dataInt16 = new Int16Array(data.buffer);
+        const frameCount = dataInt16.length / numChannels;
+        const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+        for (let channel = 0; channel < numChannels; channel++) {
+          const channelData = buffer.getChannelData(channel);
+          for (let i = 0; i < frameCount; i++) {
+            channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+          }
+        }
+        return buffer;
+      };
+
+      const audioBuffer = await decodeAudioData(decode(base64Audio), audioCtx, 24000, 1);
       const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
+      source.buffer = audioBuffer;
       source.connect(audioCtx.destination);
       source.onended = () => {
         if (audioSourceRef.current === source) {
@@ -547,7 +559,7 @@ const AppInner: React.FC = () => {
         }
       };
       audioSourceRef.current = source;
-      source.start(0);
+      source.start();
     } catch { setPlayingId(null); }
   };
 
@@ -733,9 +745,9 @@ const AppInner: React.FC = () => {
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden w-8 h-8 flex flex-col items-center justify-center gap-1.5 focus:outline-none"
             >
-              <div className={`w-5 h-0.5 bg-slate-900 dark:bg-white transition-all ${isMobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`} />
-              <div className={`w-5 h-0.5 bg-slate-900 dark:bg-white transition-all ${isMobileMenuOpen ? 'opacity-0' : ''}`} />
-              <div className={`w-5 h-0.5 bg-slate-900 dark:bg-white transition-all ${isMobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`} />
+              <div className={`w-5 h-0.5 bg-slate-900 dark:bg-white transition-all ${isMobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></div>
+              <div className={`w-5 h-0.5 bg-slate-900 dark:bg-white transition-all ${isMobileMenuOpen ? 'opacity-0' : ''}`}></div>
+              <div className={`w-5 h-0.5 bg-slate-900 dark:bg-white transition-all ${isMobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`}></div>
             </button>
             <div className="flex items-center gap-2 cursor-pointer group shrink-0" onClick={() => setView("home")}>
               <div className="w-8 h-8 md:w-10 md:h-10 bg-red-600 rounded-none flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
@@ -755,7 +767,7 @@ const AppInner: React.FC = () => {
                 onClick={() => setView("viewer")}
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 md:px-5 md:py-2.5 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-900/30 text-red-600 dark:text-red-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all hover:bg-red-100"
               >
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
                 Current Workspace
               </button>
             )}
@@ -825,7 +837,7 @@ const AppInner: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 rounded-none p-1.5 md:p-3 shadow-xl border border-slate-200 dark:border-slate-700 relative overflow-hidden">
               {status === GenerationStep.PROCESSING && (
                 <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-sm animate-in fade-in duration-300">
-                  <div className="w-16 h-16 md:w-24 md:h-24 border-[4px] md:border-[6px] border-red-100 border-t-red-500 rounded-full animate-spin mb-6 md:mb-8" />
+                  <div className="w-16 h-16 md:w-24 md:h-24 border-[4px] md:border-[6px] border-red-100 border-t-red-500 rounded-full animate-spin mb-6 md:mb-8"></div>
                   <p className="text-lg md:text-2xl font-black text-slate-900 dark:text-white text-center mb-2">Generating study set - Flashcards. Quiz. Test. Mindmap.</p>
                   <p className="text-xs md:text-sm font-bold text-red-500 tracking-widest uppercase animate-pulse">{STUDY_TIPS[tipIndex]}</p>
                 </div>
@@ -847,7 +859,7 @@ const AppInner: React.FC = () => {
                 <textarea className="w-full h-32 md:h-60 bg-transparent outline-none resize-none text-base md:text-2xl font-bold placeholder:text-slate-300 text-slate-900 dark:text-slate-100" placeholder="Type your topic here or upload documents..." value={input} onChange={(e) => setInput(e.target.value)} />
                 
                 {user?.tier === 'pro' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-3 gap-6 md:gap-8 py-4 md:py-6 border-t border-slate-200 dark:border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 py-4 md:py-6 border-t border-slate-200 dark:border-slate-800">
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <label className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">Flashcard Count</label>
@@ -900,7 +912,7 @@ const AppInner: React.FC = () => {
                 
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 pt-4 md:pt-8 border-t border-slate-200">
                   <Button variant="secondary" className="h-12 md:h-14 px-6 md:px-8 rounded-none" onClick={() => fileInputRef.current?.click()}>Upload</Button>
-                  <input type="file" min="10" max="100" step="5" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,text/plain" onChange={handleFileChange} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,text/plain" onChange={handleFileChange} />
                   <div className="flex flex-col sm:flex-row flex-1 gap-2 md:gap-3">
                     <Button className="flex-1 h-12 md:h-14 text-sm md:text-lg rounded-none" onClick={() => handleGenerate(false)}>Generate Study Set</Button>
                     {user?.tier === 'pro' && cards.length > 0 && (
@@ -914,11 +926,11 @@ const AppInner: React.FC = () => {
         )}
 
         {view === "viewer" && (
-          <div className="max-w-5xl mx-auto space-y-6 md:match-y-8 animate-content">
+          <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 animate-content">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 md:gap-4">
               <div className="flex bg-white dark:bg-slate-800 p-1 rounded-none shadow-md border border-slate-200 dark:border-slate-700 w-full lg:max-w-2xl relative h-10 md:h-14">
                 <div className="absolute inset-1 pointer-events-none">
-                  <div className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out`} style={{ width: '20%', transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : activeTab === 'test' ? '200%' : activeTab === 'mindmap' ? '300%' : '400%'})` }} />
+                  <div className={`h-full ${activeTabColor} rounded-none transition-all duration-300 ease-out`} style={{ width: '20%', transform: `translateX(${activeTab === 'cards' ? '0%' : activeTab === 'quiz' ? '100%' : activeTab === 'test' ? '200%' : activeTab === 'mindmap' ? '300%' : '400%'})` }}></div>
                 </div>
                 {(["cards", "quiz", "test", "mindmap", "chat"] as const).map((tab) => (
                   <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 text-[8px] md:text-[10px] font-black rounded-none relative z-10 uppercase tracking-widest ${activeTab === tab ? "text-white dark:text-slate-900" : "text-slate-400 hover:text-slate-600"}`}>{tab === 'chat' ? 'StuddiChat' : tab}</button>
@@ -1085,9 +1097,9 @@ const AppInner: React.FC = () => {
                            <div className="flex items-center justify-center gap-6">
                               <div className="text-center">
                                 <div className="text-[8px] font-black uppercase text-slate-500 mb-1">Total Points</div>
-                                <div className="textxl font-black">{testResults.correctCount} / {testResults.total}</div>
+                                <div className="text-xl font-black">{testResults.correctCount} / {testResults.total}</div>
                               </div>
-                              <div className="w-px h-8 bg-slate-800" />
+                              <div className="w-px h-8 bg-slate-800"></div>
                               <div className="text-center">
                                 <div className="text-[8px] font-black uppercase text-slate-500 mb-1">Time Elapsed</div>
                                 <div className="text-xl font-black">{Math.floor(testResults.durationInSeconds / 60)}m {testResults.durationInSeconds % 60}s</div>
@@ -1101,7 +1113,7 @@ const AppInner: React.FC = () => {
                              <div className="bg-slate-800 p-4 border border-slate-700">
                                <div className="text-[8px] font-black text-slate-500 uppercase mb-2">Concept Mastery</div>
                                <div className="h-2 w-full bg-slate-700 rounded-full overflow-hidden mb-2">
-                                 <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${testResults.percentage}%` }} />
+                                 <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${testResults.percentage}%` }}></div>
                                </div>
                                <div className="text-[10px] font-bold text-slate-300">Retention: {testResults.percentage > 70 ? 'High Confidence' : 'Review Required'}</div>
                              </div>
@@ -1143,7 +1155,7 @@ const AppInner: React.FC = () => {
                                  <div key={q.id} className={`p-4 border ${isCorrect ? 'bg-emerald-950/20 border-emerald-900/30' : 'bg-red-950/20 border-red-900/30'}`}>
                                    <div className="flex justify-between items-start mb-2">
                                      <p className="text-[11px] font-bold flex-1">{i+1}. {q.question}</p>
-                                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 ${isCorrect ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 ${isCorrect ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-50/20 text-red-400'}`}>
                                        {isCorrect ? 'CORRECT' : 'FAILED'}
                                      </span>
                                    </div>
@@ -1162,9 +1174,9 @@ const AppInner: React.FC = () => {
 
                         {user?.tier === 'free' && (
                           <div className="p-10 bg-emerald-950/40 border-2 border-dashed border-emerald-500/40 text-center relative z-10 rounded-none overflow-hidden group">
-                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition-colors" />
+                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition-colors"></div>
                             <div className="w-14 h-14 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                              <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                               <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                             </div>
                             <h4 className="text-lg md:text-2xl font-black text-emerald-400 uppercase tracking-widest mb-3">Unlock Ultimate Assessments</h4>
                             <p className="text-xs md:text-sm text-slate-400 font-medium mb-8 max-w-md mx-auto leading-relaxed">Free evaluations are limited to 10 points. Pro scholars access comprehensive <span className="font-black text-emerald-400">100-question integration exams</span> for deep analytical validation.</p>
@@ -1172,7 +1184,7 @@ const AppInner: React.FC = () => {
                           </div>
                         )}
 
-                        <Button className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 font-black tracking-widest relative z-10 rounded-none" onClick={() => { setIsTestSubmitted(false); setTestIndex(0); setTestAnswers({}); setTestStartTime(Date.now()); }}>Re-Attempt Integration Exam</Button>
+                        <Button className="w-full h-14 bg-emerald-600 hover:bg-red-700 font-black tracking-widest relative z-10 rounded-none" onClick={() => { setIsTestSubmitted(false); setTestIndex(0); setTestAnswers({}); setTestStartTime(Date.now()); }}>Re-Attempt Integration Exam</Button>
                       </div>
                     </div>
                   ) : (
@@ -1184,7 +1196,7 @@ const AppInner: React.FC = () => {
                                {formatSeconds(elapsedTime)}
                             </div>
                             <div className="px-3 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 rounded-none text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                               Knowledge Validation
                             </div>
                          </div>
@@ -1253,9 +1265,9 @@ const AppInner: React.FC = () => {
                     {isChatLoading && (
                       <div className="flex justify-start">
                         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 py-4 flex gap-1 items-center">
-                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" />
-                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
+                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                          <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
                         </div>
                       </div>
                     )}
@@ -1268,7 +1280,7 @@ const AppInner: React.FC = () => {
                         value={chatInput} 
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                        placeholder="Ask about concepts, definitions, or exam tips..."
+                        placeholder="Ask anything..."
                         className="flex-1 bg-slate-100 dark:bg-slate-900 px-5 py-3 border border-slate-200 dark:border-slate-700 outline-none font-bold text-sm focus:border-red-500 transition-colors"
                       />
                       <Button 
@@ -1338,9 +1350,9 @@ const AppInner: React.FC = () => {
               <div className="space-y-4 md:space-y-6">
                 <h3 className="text-xl md:text-2xl font-black text-[#1a1f2e] dark:text-white">Who StuddiSmart Is For</h3>
                 <ul className="space-y-2 md:space-y-3 text-slate-600 dark:text-slate-400 text-sm md:text-base font-medium">
-                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0" /> Students preparing for exams or finals</li>
-                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0" /> Professionals studying for certifications</li>
-                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0" /> Anyone who wants a smarter way to learn and retain information</li>
+                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0"></div> Students preparing for exams or finals</li>
+                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0"></div> Professionals studying for certifications</li>
+                  <li className="flex gap-3 items-center"><div className="w-1 h-1 bg-slate-400 rounded-full shrink-0"></div> Anyone who wants a smarter way to learn and retain information</li>
                 </ul>
               </div>
             </div>
@@ -1381,7 +1393,7 @@ const AppInner: React.FC = () => {
           <div className="max-w-5xl mx-auto py-6 md:py-10 space-y-16 md:space-y-24 animate-content">
             <div className="space-y-10 md:space-y-16">
               <h2 className="text-3xl md:text-4xl font-black text-center text-slate-900 dark:text-white leading-tight">Select StuddiSmart Plan</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
+              <div id="pricing-plans" className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
                 {/* Free Plan */}
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Free</h3>
@@ -1408,24 +1420,24 @@ const AppInner: React.FC = () => {
                     <li>• Unlimited StuddiChat interactions</li>
                     <li>• Full AI Synthesis access</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Monthly'}</Button>
+                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE MONTHLY'}</Button>
                 </div>
 
                 {/* Pro Plan - Yearly */}
                 <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-6 md:p-8 space-y-6 md:space-y-8 shadow-xl md:scale-105 flex flex-col relative overflow-hidden">
-                  <div className="absolute top-4 right-[-35px] bg-red-600 text-white text-[8px] font-black py-1 px-10 rotate-45 uppercase tracking-widest">20% Discount</div>
+                  <div className="absolute top-4 right-[-35px] bg-red-600 text-white text-[8px] font-black py-1 px-10 rotate-45 uppercase tracking-widest">Best Value</div>
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Pro - yearly</h3>
                   <div className="space-y-1">
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Yearly Subscription</div>
-                    <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$7.99<span className="text-sm font-bold text-slate-400">/month</span></div>
-                    <div className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 dark:bg-red-900/20 inline-block px-2 py-0.5">20% Discount Received</div>
+                    <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$6.67<span className="text-sm font-bold text-slate-400">/month</span></div>
+                    <div className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 dark:bg-red-900/20 inline-block px-2 py-0.5">Save $40 compared to monthly</div>
                   </div>
                   <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
                     <li>• Everything in Monthly</li>
-                    <li>• $95.88 billed annually</li>
+                    <li>• $79.99 billed annually</li>
                     <li>• Best Value plan</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Yearly'}</Button>
+                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE YEARLY'}</Button>
                 </div>
               </div>
             </div>
@@ -1443,7 +1455,7 @@ const AppInner: React.FC = () => {
                     { text: "The practice tests gave me the confidence I needed to pass my certification exam on the first try.", author: "M", role: "Professional Exam Taker" },
                     { text: "Mapping out complex project management theories with mind maps made everything click for me visually.", author: "E", role: "MBA Candidate" },
                     { text: "Quizzes with explanations turned my mistakes into learning moments rather than just points lost.", author: "T", role: "High School Senior" },
-                    { text: "Converting dense research papers into skimmable mind maps has completely changed how I prepare for my thesis.", author: "L", role: "Graduate Researcher" },
+                    { text: "Converting dense research papers into interactive flashcards has completely changed how I prepare for my thesis.", author: "L", role: "Graduate Researcher" },
                   ].map((t, i) => (
                     <div key={i} className="bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4 flex flex-col">
                        <div className="flex-grow">
@@ -1457,24 +1469,24 @@ const AppInner: React.FC = () => {
                </div>
             </div>
 
-            {/* CTA BLOCK */}
-            <div className="bg-slate-900 text-white p-10 md:p-20 text-center space-y-10 rounded-none border border-slate-800 shadow-2xl relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-1.5 h-full bg-red-600"></div>
-               <div className="space-y-4 max-w-3xl mx-auto">
-                  <h3 className="text-2xl md:text-4xl font-black tracking-tight">Elevate your academic potential</h3>
-                  <p className="text-slate-400 text-sm md:text-xl font-medium leading-relaxed">
+            {/* CTA BLOCK - UPDATED WORDING */}
+            <div className="bg-white dark:bg-slate-800 text-center py-16 md:py-24 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 relative overflow-hidden">
+               <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600"></div>
+               <div className="space-y-4 max-w-2xl mx-auto px-6">
+                  <h3 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Elevate your academic potential</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm md:text-xl font-medium leading-relaxed">
                      Master complex subjects with clarity and build lasting confidence for every exam.
                   </p>
                </div>
-               <div className="space-y-6">
+               <div className="space-y-6 px-6">
                   <Button 
                     className="mx-auto h-14 md:h-16 px-12 md:px-16 bg-red-600 hover:bg-red-700 text-xs md:text-sm tracking-[0.2em] font-black border-none shadow-2xl shadow-red-500/20"
-                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    onClick={() => document.getElementById('pricing-plans')?.scrollIntoView({ behavior: 'smooth' })}
                   >
-                    Start Learning Smarter
+                    👉 Choose a plan
                   </Button>
-                  <p className="text-[9px] md:text-[11px] font-black uppercase text-slate-500 tracking-[0.3em]">
-                     Full access to all AI modules. Cancel anytime.
+                  <p className="text-[9px] md:text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">
+                     Unlimited access to all learning tools. Cancel anytime.
                   </p>
                </div>
             </div>
@@ -1518,6 +1530,7 @@ const AppInner: React.FC = () => {
                {chatMessages.length === 0 && (
                  <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
                    <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-700 rounded-full flex items-center justify-center mb-4">
+                     {/* Fix: changed invalid attribute 'none' to fill="none" to prevent SVGProps error and potential JSX parsing failures. */}
                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                    </div>
                    <p className="text-xs font-black uppercase tracking-widest">Awaiting academic prompt...</p>
@@ -1533,9 +1546,9 @@ const AppInner: React.FC = () => {
                {isChatLoading && (
                  <div className="flex justify-start">
                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 flex gap-1 items-center">
-                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" />
-                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></div>
+                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                     <div className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
                    </div>
                  </div>
                )}
@@ -1565,14 +1578,14 @@ const AppInner: React.FC = () => {
           >
             <div className="w-6 h-6 bg-red-600 flex items-center justify-center font-black text-xs">C</div>
             <span className="text-xs font-black uppercase tracking-[0.2em]">Ask StuddiChat</span>
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-1" />
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-1"></div>
           </button>
         )}
       </div>
 
       {showAuthModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md p-6 md:p-8 pt-6 space-y-5 md:space-y-6 border border-slate-200 dark:border-slate-700 relative rounded-none shadow-2xl overflow-y-auto max-h-[95vh]">
+          <div className="bg-white dark:bg-slate-800 w-full max-md:max-h-[90vh] max-w-md p-6 md:p-8 pt-6 space-y-5 md:space-y-6 border border-slate-200 dark:border-slate-700 relative rounded-none shadow-2xl overflow-y-auto">
             <button onClick={() => setShowAuthModal(false)} className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors z-10">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
@@ -1681,12 +1694,17 @@ const AppInner: React.FC = () => {
       )}
 
       <footer className="container-responsive py-6 md:py-8 opacity-40 text-[7px] md:text-[8px] font-black uppercase tracking-[0.4em] flex justify-between border-t border-slate-200 dark:border-slate-800">
-        <p>© 2026 StuddiSmart AI Core</p>
+        <p>Copyright © 2026 StuddiSmart. All Rights Reserved.</p>
         <div className="flex gap-3 md:gap-4"><button className="text-slate-900 dark:text-white">Privacy</button><button className="text-slate-900 dark:text-white">Terms</button></div>
       </footer>
     </div>
   );
 };
 
-const App: React.FC = () => <ErrorBoundary><AppInner /></ErrorBoundary>;
+const App: React.FC = () => (
+  <ErrorBoundary>
+    <AppInner />
+  </ErrorBoundary>
+);
+
 export default App;

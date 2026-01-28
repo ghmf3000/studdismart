@@ -1,5 +1,7 @@
+
 // services/firebase.ts
-import { initializeApp, getApps, getApp } from "firebase/app";
+// Standard modular imports for Firebase v9+
+import * as FirebaseApp from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
@@ -11,10 +13,12 @@ const firebaseConfig = {
   appId: "1:1094903850038:web:REPLACE_WITH_YOUR_REAL_WEB_APP_ID",
 };
 
-// ✅ Initialize exactly once
-export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// ✅ Initialize exactly once using namespaced methods to bypass named export resolution issues in certain environments
+export const app = FirebaseApp.getApps().length 
+  ? FirebaseApp.getApp() 
+  : FirebaseApp.initializeApp(firebaseConfig);
 
-// ✅ Auth is registered because we import from "firebase/auth" above
+// ✅ Auth is registered via the modular SDK, initialized with the app instance
 export const auth = getAuth(app);
 
 export const googleProvider = new GoogleAuthProvider();

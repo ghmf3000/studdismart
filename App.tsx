@@ -661,6 +661,53 @@ const AppInner: React.FC = () => {
     setView("home");
   };
 
+  const handleExportQuiz = (format: 'print' | 'txt') => {
+    if (user?.tier !== 'pro') return;
+    
+    const header = `STUDDISMART AI - QUIZ PERFORMANCE REPORT\n`;
+    const details = `TOPIC: ${input}\nSCORE: ${quizResults.percentage}%\nDATE: ${new Date().toLocaleString()}\n`;
+    const separator = `${"=".repeat(50)}\n\n`;
+    
+    const content = quiz.map((q, i) => {
+      const userAnswer = quizAnswers[q.id] || "NO ANSWER";
+      const status = userAnswer === q.correctAnswer ? "[CORRECT]" : "[INCORRECT]";
+      return `${i + 1}. QUESTION: ${q.question}\n   YOUR ANSWER: ${userAnswer} ${status}\n   CORRECT ANSWER: ${q.correctAnswer}\n   EXPLANATION: ${q.explanation}\n\n`;
+    }).join("");
+
+    const fullText = header + details + separator + content;
+
+    if (format === 'txt') {
+      const blob = new Blob([fullText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `studdi-quiz-results-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head><title>StuddiSmart AI Quiz Report</title></head>
+            <body style="font-family: sans-serif; padding: 40px; color: #1a1f2e; line-height: 1.6;">
+              <div style="max-width: 800px; margin: 0 auto;">
+                <h1 style="color: #c2211d; border-bottom: 2px solid #eee; padding-bottom: 10px;">StuddiSmart Performance Report</h1>
+                <pre style="white-space: pre-wrap; font-family: inherit;">${fullText}</pre>
+              </div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 250);
+      }
+    }
+  };
+
   const activeTabColor = useMemo(() => {
     if (activeTab === 'cards') return 'bg-red-600 dark:bg-red-500';
     if (activeTab === 'quiz') return 'bg-blue-600 dark:bg-blue-500';
@@ -699,7 +746,7 @@ const AppInner: React.FC = () => {
             <div className="hidden md:flex items-center gap-6">
               <button onClick={() => setView("home")} className={`text-[10px] font-black uppercase tracking-widest ${view === 'home' ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>Home</button>
               <button onClick={() => setView("about")} className={`text-[10px] font-black uppercase tracking-widest ${view === 'about' ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>About</button>
-              <button onClick={() => setView("pricing")} className={`text-[10px] font-black uppercase tracking-widest ${view === 'pricing' ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>Pricing</button>
+              <button onClick={() => setView("pricing")} className={`text-[10px] font-black uppercase tracking-widest ${view === 'pricing' ? 'text-red-500' : 'text-slate-600 dark:text-slate-400'}`}>Pricing</button>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
@@ -779,7 +826,8 @@ const AppInner: React.FC = () => {
               {status === GenerationStep.PROCESSING && (
                 <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-sm animate-in fade-in duration-300">
                   <div className="w-16 h-16 md:w-24 md:h-24 border-[4px] md:border-[6px] border-red-100 border-t-red-500 rounded-full animate-spin mb-6 md:mb-8" />
-                  <p className="text-base md:text-xl font-black text-slate-900 dark:text-white text-center">{STUDY_TIPS[tipIndex]}</p>
+                  <p className="text-lg md:text-2xl font-black text-slate-900 dark:text-white text-center mb-2">Generating study set - Flashcards. Quiz. Test. Mindmap.</p>
+                  <p className="text-xs md:text-sm font-bold text-red-500 tracking-widest uppercase animate-pulse">{STUDY_TIPS[tipIndex]}</p>
                 </div>
               )}
               {status === GenerationStep.ERROR && (
@@ -799,7 +847,7 @@ const AppInner: React.FC = () => {
                 <textarea className="w-full h-32 md:h-60 bg-transparent outline-none resize-none text-base md:text-2xl font-bold placeholder:text-slate-300 text-slate-900 dark:text-slate-100" placeholder="Type your topic here or upload documents..." value={input} onChange={(e) => setInput(e.target.value)} />
                 
                 {user?.tier === 'pro' && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 py-4 md:py-6 border-t border-slate-200 dark:border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-3 gap-6 md:gap-8 py-4 md:py-6 border-t border-slate-200 dark:border-slate-800">
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <label className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-slate-400">Flashcard Count</label>
@@ -852,7 +900,7 @@ const AppInner: React.FC = () => {
                 
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 pt-4 md:pt-8 border-t border-slate-200">
                   <Button variant="secondary" className="h-12 md:h-14 px-6 md:px-8 rounded-none" onClick={() => fileInputRef.current?.click()}>Upload</Button>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,text/plain" onChange={handleFileChange} />
+                  <input type="file" min="10" max="100" step="5" ref={fileInputRef} className="hidden" accept="image/*,application/pdf,text/plain" onChange={handleFileChange} />
                   <div className="flex flex-col sm:flex-row flex-1 gap-2 md:gap-3">
                     <Button className="flex-1 h-12 md:h-14 text-sm md:text-lg rounded-none" onClick={() => handleGenerate(false)}>Generate Study Set</Button>
                     {user?.tier === 'pro' && cards.length > 0 && (
@@ -880,7 +928,21 @@ const AppInner: React.FC = () => {
             </div>
             
             <div className="min-h-[300px] md:min-h-[450px]">
-              {activeTab === "cards" && <FlashcardViewer card={cards[currentIndex]} index={currentIndex} total={cards.length} onPrev={() => setCurrentIndex((p) => Math.max(0, p - 1))} onNext={() => setCurrentIndex((p) => Math.min(cards.length - 1, p + 1))} />}
+              {activeTab === "cards" && (
+                <div className="space-y-8">
+                  <FlashcardViewer card={cards[currentIndex]} index={currentIndex} total={cards.length} isPro={user?.tier === 'pro'} onPrev={() => setCurrentIndex((p) => Math.max(0, p - 1))} onNext={() => setCurrentIndex((p) => Math.min(cards.length - 1, p + 1))} />
+                  {currentIndex === cards.length - 1 && user?.tier === 'free' && (
+                    <div className="max-w-2xl mx-auto p-8 bg-red-50 dark:bg-red-950/20 border-2 border-dashed border-red-200 dark:border-red-800 text-center animate-in fade-in slide-in-from-bottom-4 duration-500 rounded-none mt-10">
+                      <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      </div>
+                      <h4 className="text-base md:text-xl font-black text-red-700 dark:text-red-400 uppercase tracking-widest mb-2">Want more flashcards?</h4>
+                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 font-medium mb-6 max-w-md mx-auto">Free users are capped at 10 flashcards per topic. Upgrade to Pro and generate up to <span className="font-black text-red-600">100 premium cards</span> at once!</p>
+                      <Button onClick={() => setView('pricing')} className="h-14 px-10 bg-red-600 hover:bg-red-700 text-xs tracking-widest shadow-xl shadow-red-500/20">Upgrade to Pro Set</Button>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {activeTab === "quiz" && (
                 <div className="max-w-2xl mx-auto">
@@ -905,6 +967,20 @@ const AppInner: React.FC = () => {
                           </div>
                         </div>
 
+                        {user?.tier === 'pro' && (
+                          <div className="flex flex-wrap items-center gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest mr-2">Export Results:</span>
+                            <button onClick={() => handleExportQuiz('print')} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                              Print Report
+                            </button>
+                            <button onClick={() => handleExportQuiz('txt')} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                              Download TXT
+                            </button>
+                          </div>
+                        )}
+
                         <div className="space-y-6">
                            <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white border-l-4 border-red-500 pl-3">Answer Breakdown & Analysis</h4>
                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
@@ -916,12 +992,23 @@ const AppInner: React.FC = () => {
                                     <div className="text-[10px] uppercase font-black text-slate-400">Correct: <span className="text-emerald-600">{q.correctAnswer}</span></div>
                                  </div>
                                  <div className="p-3 bg-white/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
-                                   <p className="text-[10px] text-slate-500 leading-relaxed font-medium"><span className="font-black text-blue-500 uppercase mr-1">Explanation:</span> {q.explanation}</p>
+                                   <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-bold"><span className="font-black text-blue-500 uppercase mr-1">Logic Insight:</span> {q.explanation}</p>
                                  </div>
                                </div>
                              ))}
                            </div>
                         </div>
+
+                        {user?.tier === 'free' && (
+                          <div className="p-10 bg-blue-50 dark:bg-blue-950/20 border-2 border-dashed border-blue-200 dark:border-blue-800 text-center rounded-none shadow-inner">
+                            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <h4 className="text-base md:text-xl font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-2">Mastered these 10?</h4>
+                            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 font-medium mb-8 max-w-md mx-auto">Free scholars are capped at 10 practice questions. Upgrade to Pro and challenge yourself with up to <span className="font-black text-blue-600">100 questions</span> per set for complete domain mastery!</p>
+                            <Button onClick={() => setView('pricing')} className="h-14 px-10 bg-blue-600 hover:bg-blue-700 border-none shadow-xl shadow-blue-500/20 text-xs tracking-widest">Unlock 100+ Questions</Button>
+                          </div>
+                        )}
 
                         <Button className="w-full h-12 md:h-14 bg-red-600 hover:bg-red-700" onClick={() => { setIsQuizSubmitted(false); setQuizIndex(0); setQuizAnswers({}); }}>Re-Practice Segment</Button>
                       </div>
@@ -963,9 +1050,9 @@ const AppInner: React.FC = () => {
                       </div>
 
                       {quizAnswers[quiz[quizIndex]?.id] && (
-                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <p className="text-[10px] font-black uppercase text-blue-500 mb-2">Expert Feedback</p>
-                          <p className="text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                        <div className="p-5 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <p className="text-[10px] font-black uppercase text-blue-500 mb-2">Detailed Logic Breakdown</p>
+                          <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 leading-relaxed italic">
                             {quiz[quizIndex].explanation}
                           </p>
                         </div>
@@ -998,7 +1085,7 @@ const AppInner: React.FC = () => {
                            <div className="flex items-center justify-center gap-6">
                               <div className="text-center">
                                 <div className="text-[8px] font-black uppercase text-slate-500 mb-1">Total Points</div>
-                                <div className="text-xl font-black">{testResults.correctCount} / {testResults.total}</div>
+                                <div className="textxl font-black">{testResults.correctCount} / {testResults.total}</div>
                               </div>
                               <div className="w-px h-8 bg-slate-800" />
                               <div className="text-center">
@@ -1064,7 +1151,7 @@ const AppInner: React.FC = () => {
                                       <div>YOUR LOGIC: <span className={isCorrect ? 'text-emerald-400' : 'text-red-400'}>{testAnswers[q.id] || 'SKIP'}</span></div>
                                       <div>SYNTHESIS: <span className="text-emerald-400">{q.correctAnswer}</span></div>
                                    </div>
-                                   <p className="text-[10px] text-slate-400 font-medium border-t border-white/5 pt-2 italic">
+                                   <p className="text-[11px] text-slate-300 font-bold border-t border-white/5 pt-2 italic">
                                      <span className="text-blue-400 font-black not-italic mr-1">EXPLANATION:</span> {q.explanation}
                                    </p>
                                  </div>
@@ -1072,6 +1159,18 @@ const AppInner: React.FC = () => {
                              })}
                            </div>
                         </div>
+
+                        {user?.tier === 'free' && (
+                          <div className="p-10 bg-emerald-950/40 border-2 border-dashed border-emerald-500/40 text-center relative z-10 rounded-none overflow-hidden group">
+                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition-colors" />
+                            <div className="w-14 h-14 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                              <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                            </div>
+                            <h4 className="text-lg md:text-2xl font-black text-emerald-400 uppercase tracking-widest mb-3">Unlock Ultimate Assessments</h4>
+                            <p className="text-xs md:text-sm text-slate-400 font-medium mb-8 max-w-md mx-auto leading-relaxed">Free evaluations are limited to 10 points. Pro scholars access comprehensive <span className="font-black text-emerald-400">100-question integration exams</span> for deep analytical validation.</p>
+                            <Button onClick={() => setView('pricing')} className="h-14 px-12 bg-emerald-600 hover:bg-emerald-700 border-none shadow-2xl shadow-emerald-500/20 text-xs tracking-[0.2em] font-black">Go Pro for Tests</Button>
+                          </div>
+                        )}
 
                         <Button className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 font-black tracking-widest relative z-10 rounded-none" onClick={() => { setIsTestSubmitted(false); setTestIndex(0); setTestAnswers({}); setTestStartTime(Date.now()); }}>Re-Attempt Integration Exam</Button>
                       </div>
@@ -1201,7 +1300,7 @@ const AppInner: React.FC = () => {
                 With StuddiSmart, you can upload your PDFs, notes, or images and instantly transform them into:
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-10">
                 <div className="space-y-3 md:space-y-4">
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-[#c2211d] flex items-center justify-center text-white font-black text-lg md:text-xl">FC</div>
                   <h3 className="text-base md:text-lg font-black text-[#1a1f2e] dark:text-white uppercase tracking-tight">Flashcards</h3>
@@ -1211,6 +1310,11 @@ const AppInner: React.FC = () => {
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-[#2b64e0] flex items-center justify-center text-white font-black text-lg md:text-xl">QZ</div>
                   <h3 className="text-base md:text-lg font-black text-[#1a1f2e] dark:text-white uppercase tracking-tight">Quizzes</h3>
                   <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm leading-relaxed">To test your understanding and track progress.</p>
+                </div>
+                <div className="space-y-3 md:space-y-4">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-[#10b981] flex items-center justify-center text-white font-black text-lg md:text-xl">TS</div>
+                  <h3 className="text-base md:text-lg font-black text-[#1a1f2e] dark:text-white uppercase tracking-tight">Tests</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm leading-relaxed">For comprehensive domain evaluation and analytics.</p>
                 </div>
                 <div className="space-y-3 md:space-y-4">
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-[#9c27b0] flex items-center justify-center text-white font-black text-lg md:text-xl">MM</div>
@@ -1274,54 +1378,105 @@ const AppInner: React.FC = () => {
         )}
 
         {view === "pricing" && (
-          <div className="max-w-5xl mx-auto py-6 md:py-10 space-y-8 md:space-y-12 animate-content">
-            <h2 className="text-3xl md:text-4xl font-black text-center text-slate-900 dark:text-white leading-tight">Select StuddiSmart Plan</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
-              {/* Free Plan */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
-                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Free Plan</h3>
-                <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$0</div>
-                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-500 flex-grow">
-                  <li>• 10 Flashcards per unique topic</li>
-                  <li>• 10 Quizzes per unique topic</li>
-                  <li>• 5 StuddiChat interactions</li>
-                </ul>
-                <Button variant="secondary" className="w-full cursor-default h-12" disabled>{user?.tier === 'free' ? 'Current Plan' : 'Free Tier'}</Button>
-              </div>
-              
-              {/* Pro Plan - Monthly */}
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
-                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Pro Plan</h3>
-                <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly Subscription</div>
-                  <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$9.99<span className="text-sm font-bold text-slate-400">/month</span></div>
+          <div className="max-w-5xl mx-auto py-6 md:py-10 space-y-16 md:space-y-24 animate-content">
+            <div className="space-y-10 md:space-y-16">
+              <h2 className="text-3xl md:text-4xl font-black text-center text-slate-900 dark:text-white leading-tight">Select StuddiSmart Plan</h2>
+              <div id="pricing-plans" className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
+                {/* Free Plan */}
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
+                  <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Free</h3>
+                  <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$0</div>
+                  <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-500 flex-grow">
+                    <li>• 10 Flashcards per unique topic</li>
+                    <li>• 10 Quizzes per unique topic</li>
+                    <li>• 5 StuddiChat interactions</li>
+                  </ul>
+                  <Button variant="secondary" className="w-full cursor-default h-12" disabled>{user?.tier === 'free' ? 'Current Plan' : 'Free Tier'}</Button>
                 </div>
-                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
-                  <li>• Unlimited flashcards (up to 100/set)</li>
-                  <li>• Unlimited quizzes (up to 100/set)</li>
-                  <li>• Unlimited tests (up to 100/set)</li>
-                  <li>• Unlimited StuddiChat interactions</li>
-                  <li>• Full AI Synthesis access</li>
-                </ul>
-                <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Monthly'}</Button>
-              </div>
+                
+                {/* Pro Plan - Monthly */}
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
+                  <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Pro - monthly</h3>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly Subscription</div>
+                    <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$9.99<span className="text-sm font-bold text-slate-400">/month</span></div>
+                  </div>
+                  <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
+                    <li>• Unlimited flashcards (up to 100/set)</li>
+                    <li>• Unlimited quizzes (up to 100/set)</li>
+                    <li>• Unlimited tests (up to 100/set)</li>
+                    <li>• Unlimited StuddiChat interactions</li>
+                    <li>• Full AI Synthesis access</li>
+                  </ul>
+                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Monthly'}</Button>
+                </div>
 
-              {/* Pro Plan - Yearly */}
-              <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-6 md:p-8 space-y-6 md:space-y-8 shadow-xl md:scale-105 flex flex-col relative overflow-hidden">
-                <div className="absolute top-4 right-[-35px] bg-red-600 text-white text-[8px] font-black py-1 px-10 rotate-45 uppercase tracking-widest">20% Discount</div>
-                <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">Pro Plan</h3>
-                <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Yearly Subscription</div>
-                  <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$7.99<span className="text-sm font-bold text-slate-400">/month</span></div>
-                  <div className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 dark:bg-red-900/20 inline-block px-2 py-0.5">20% Discount Received</div>
+                {/* Pro Plan - Yearly */}
+                <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-6 md:p-8 space-y-6 md:space-y-8 shadow-xl md:scale-105 flex flex-col relative overflow-hidden">
+                  <div className="absolute top-4 right-[-35px] bg-red-600 text-white text-[8px] font-black py-1 px-10 rotate-45 uppercase tracking-widest">20% Discount</div>
+                  <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Pro - yearly</h3>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Yearly Subscription</div>
+                    <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$7.99<span className="text-sm font-bold text-slate-400">/month</span></div>
+                    <div className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 dark:bg-red-900/20 inline-block px-2 py-0.5">20% Discount Received</div>
+                  </div>
+                  <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
+                    <li>• Everything in Monthly</li>
+                    <li>• $95.88 billed annually</li>
+                    <li>• Best Value plan</li>
+                  </ul>
+                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Yearly'}</Button>
                 </div>
-                <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
-                  <li>• Everything in Monthly</li>
-                  <li>• $95.88 billed annually</li>
-                  <li>• Best Value plan</li>
-                </ul>
-                <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'Choose Yearly'}</Button>
               </div>
+            </div>
+
+            {/* TESTIMONIALS SECTION */}
+            <div className="space-y-12">
+               <div className="text-center space-y-4">
+                  <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Real stories from our scholars</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-bold">Experience-based insights from users who leveled up their learning.</p>
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[
+                    { text: "The flashcards generated from my anatomy notes saved me hours of typing, and I’m actually retaining the material now.", author: "S", role: "Medical Student" },
+                    { text: "StuddiChat helped me finally grasp organic chemistry by breaking down concepts into simple, logical steps.", author: "J", role: "College Student" },
+                    { text: "The practice tests gave me the confidence I needed to pass my certification exam on the first try.", author: "M", role: "Professional Exam Taker" },
+                    { text: "Mapping out complex project management theories with mind maps made everything click for me visually.", author: "E", role: "MBA Candidate" },
+                    { text: "Quizzes with explanations turned my mistakes into learning moments rather than just points lost.", author: "T", role: "High School Senior" },
+                    { text: "Converting dense research papers into interactive flashcards has completely changed how I prepare for my thesis.", author: "L", role: "Graduate Researcher" },
+                  ].map((t, i) => (
+                    <div key={i} className="bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4 flex flex-col">
+                       <div className="flex-grow">
+                          <p className="text-sm font-medium text-slate-600 dark:text-slate-300 italic leading-relaxed">"{t.text}"</p>
+                       </div>
+                       <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                          <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">— {t.author}, {t.role}</p>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            </div>
+
+            {/* CTA BLOCK */}
+            <div className="bg-white dark:bg-slate-800 text-center py-16 md:py-24 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 relative overflow-hidden">
+               <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600"></div>
+               <div className="space-y-4 max-w-2xl mx-auto px-6">
+                  <h3 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Achieve your academic best</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm md:text-xl font-medium leading-relaxed">
+                     Build the clarity and confidence you need to master any subject and approach every exam with total readiness.
+                  </p>
+               </div>
+               <div className="space-y-6 px-6">
+                  <Button 
+                    className="mx-auto h-14 md:h-16 px-12 md:px-16 bg-red-600 hover:bg-red-700 text-xs md:text-sm tracking-[0.2em] font-black border-none shadow-2xl shadow-red-500/20"
+                    onClick={() => document.getElementById('pricing-plans')?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    Choose a plan
+                  </Button>
+                  <p className="text-[9px] md:text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">
+                     Full access to all AI modules. Cancel anytime.
+                  </p>
+               </div>
             </div>
           </div>
         )}
@@ -1363,7 +1518,7 @@ const AppInner: React.FC = () => {
                {chatMessages.length === 0 && (
                  <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
                    <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-700 rounded-full flex items-center justify-center mb-4">
-                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                     <svg className="w-6 h-6 fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                    </div>
                    <p className="text-xs font-black uppercase tracking-widest">Awaiting academic prompt...</p>
                  </div>

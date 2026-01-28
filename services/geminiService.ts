@@ -87,8 +87,9 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
     2. Exactly ${qCount} "Quiz" Questions (for practice).
     3. Exactly ${tCount} "Test" Questions (for evaluation). 
     IMPORTANT: Quiz and Test questions MUST be different.
-    4. Each question must include an explanation and a 'category' tag.
-    5. A hierarchical Mindmap.
+    4. Each question must include a COMPREHENSIVE explanation. The explanation MUST explicitly state why the correct answer is correct AND why each of the other distractors is incorrect.
+    5. Each question must include a 'category' tag.
+    6. A hierarchical Mindmap.
     ${varietyPrompt}
     Return ONLY valid JSON.`;
 

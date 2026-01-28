@@ -7,6 +7,7 @@ interface FlashcardViewerProps {
   card: Flashcard;
   index: number;
   total: number;
+  isPro?: boolean;
   onPrev?: () => void;
   onNext?: () => void;
 }
@@ -61,7 +62,7 @@ const TutorSkeleton: React.FC = () => (
   </div>
 );
 
-export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, total, onPrev, onNext }) => {
+export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, total, isPro, onPrev, onNext }) => {
   if (!card) return null;
 
   const [isFlipped, setIsFlipped] = useState(false);
@@ -185,6 +186,70 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
       setShowTutor(false);
     } finally {
       setIsFetchingTutor(false);
+    }
+  };
+
+  const handleExportTutor = (format: 'print' | 'txt') => {
+    if (!tutorData) return;
+    
+    let content = `STUDDISMART AI TUTOR EXPLANATION\n`;
+    content += `TOPIC: ${card.question}\n`;
+    content += `ANSWER: ${card.answer}\n`;
+    content += `DATE: ${new Date().toLocaleString()}\n`;
+    content += `${"=".repeat(40)}\n\n`;
+    
+    content += `[SIMPLE EXPLANATION]\n${tutorData.simpleExplanation}\n\n`;
+    content += `[REAL WORLD EXAMPLE]\n"${tutorData.realWorldExample}"\n\n`;
+    
+    content += `[CORE TAKEAWAYS]\n`;
+    tutorData.keyCommands.forEach((item, i) => {
+      content += `${i+1}. ${item}\n`;
+    });
+    content += `\n`;
+    
+    content += `[COMMON MISTAKES]\n`;
+    tutorData.commonMistakes.forEach((item, i) => {
+      content += `! ${item}\n`;
+    });
+    content += `\n`;
+    
+    content += `[QUICK CHECK]\n`;
+    tutorData.quickCheck.forEach((item, i) => {
+      content += `Q${i+1}: ${item.question}\nA: ${item.answer}\n\n`;
+    });
+
+    if (format === 'txt') {
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `studdi-tutor-explanation-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head><title>StuddiSmart AI Tutor Export</title></head>
+            <body style="font-family: sans-serif; padding: 40px; color: #1a1f2e; line-height: 1.6;">
+              <div style="max-width: 800px; margin: 0 auto;">
+                <h1 style="color: #c2211d; border-bottom: 2px solid #eee; padding-bottom: 10px;">StuddiSmart AI Explanation</h1>
+                <p><strong>Topic:</strong> ${card.question}</p>
+                <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
+                <pre style="white-space: pre-wrap; font-family: inherit;">${content.split('\n\n').slice(3).join('\n\n')}</pre>
+              </div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 250);
+      }
     }
   };
 
@@ -337,12 +402,34 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Personal Learning Synthesis (Draggable)</p>
                 </div>
               </div>
-              <button 
-                onClick={() => { stopAudio(); setShowTutor(false); }} 
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all text-slate-400 active:scale-90"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              <div className="flex items-center gap-2">
+                {tutorData && isPro && (
+                  <div className="hidden md:flex items-center gap-2 mr-4 border-r border-slate-200 dark:border-slate-700 pr-4">
+                    <button 
+                      onClick={() => handleExportTutor('print')}
+                      className="p-2 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-none text-[9px] font-black uppercase tracking-widest flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                      title="Print Explanation"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                      Print
+                    </button>
+                    <button 
+                      onClick={() => handleExportTutor('txt')}
+                      className="p-2 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 rounded-none text-[9px] font-black uppercase tracking-widest flex items-center gap-2 text-slate-600 dark:text-slate-300"
+                      title="Download as TXT"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      Download
+                    </button>
+                  </div>
+                )}
+                <button 
+                  onClick={() => { stopAudio(); setShowTutor(false); }} 
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all text-slate-400 active:scale-90"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
             </div>
 
             {/* Modal Content */}
@@ -351,6 +438,14 @@ export const FlashcardViewer: React.FC<FlashcardViewerProps> = ({ card, index, t
                 <TutorSkeleton />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  {/* Pro Export for Mobile */}
+                  {isPro && (
+                    <div className="md:hidden flex gap-2">
+                       <button onClick={() => handleExportTutor('print')} className="flex-1 py-3 bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest">Print Explanation</button>
+                       <button onClick={() => handleExportTutor('txt')} className="flex-1 py-3 bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest">Download TXT</button>
+                    </div>
+                  )}
+
                   {/* SECTION: SIMPLE EXPLANATION */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-1">

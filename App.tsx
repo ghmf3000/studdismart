@@ -1381,7 +1381,7 @@ const AppInner: React.FC = () => {
           <div className="max-w-5xl mx-auto py-6 md:py-10 space-y-16 md:space-y-24 animate-content">
             <div className="space-y-10 md:space-y-16">
               <h2 className="text-3xl md:text-4xl font-black text-center text-slate-900 dark:text-white leading-tight">Select StuddiSmart Plan</h2>
-              <div id="pricing-plans" className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
                 {/* Free Plan */}
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Free</h3>
@@ -1443,7 +1443,7 @@ const AppInner: React.FC = () => {
                     { text: "The practice tests gave me the confidence I needed to pass my certification exam on the first try.", author: "M", role: "Professional Exam Taker" },
                     { text: "Mapping out complex project management theories with mind maps made everything click for me visually.", author: "E", role: "MBA Candidate" },
                     { text: "Quizzes with explanations turned my mistakes into learning moments rather than just points lost.", author: "T", role: "High School Senior" },
-                    { text: "Converting dense research papers into interactive flashcards has completely changed how I prepare for my thesis.", author: "L", role: "Graduate Researcher" },
+                    { text: "Converting dense research papers into skimmable mind maps has completely changed how I prepare for my thesis.", author: "L", role: "Graduate Researcher" },
                   ].map((t, i) => (
                     <div key={i} className="bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4 flex flex-col">
                        <div className="flex-grow">
@@ -1458,22 +1458,22 @@ const AppInner: React.FC = () => {
             </div>
 
             {/* CTA BLOCK */}
-            <div className="bg-white dark:bg-slate-800 text-center py-16 md:py-24 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 relative overflow-hidden">
-               <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600"></div>
-               <div className="space-y-4 max-w-2xl mx-auto px-6">
-                  <h3 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Achieve your academic best</h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm md:text-xl font-medium leading-relaxed">
-                     Build the clarity and confidence you need to master any subject and approach every exam with total readiness.
+            <div className="bg-slate-900 text-white p-10 md:p-20 text-center space-y-10 rounded-none border border-slate-800 shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-1.5 h-full bg-red-600"></div>
+               <div className="space-y-4 max-w-3xl mx-auto">
+                  <h3 className="text-2xl md:text-4xl font-black tracking-tight">Elevate your academic potential</h3>
+                  <p className="text-slate-400 text-sm md:text-xl font-medium leading-relaxed">
+                     Master complex subjects with clarity and build lasting confidence for every exam.
                   </p>
                </div>
-               <div className="space-y-6 px-6">
+               <div className="space-y-6">
                   <Button 
                     className="mx-auto h-14 md:h-16 px-12 md:px-16 bg-red-600 hover:bg-red-700 text-xs md:text-sm tracking-[0.2em] font-black border-none shadow-2xl shadow-red-500/20"
-                    onClick={() => document.getElementById('pricing-plans')?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                   >
-                    Choose a plan
+                    Start Learning Smarter
                   </Button>
-                  <p className="text-[9px] md:text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">
+                  <p className="text-[9px] md:text-[11px] font-black uppercase text-slate-500 tracking-[0.3em]">
                      Full access to all AI modules. Cancel anytime.
                   </p>
                </div>
@@ -1518,7 +1518,7 @@ const AppInner: React.FC = () => {
                {chatMessages.length === 0 && (
                  <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
                    <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-700 rounded-full flex items-center justify-center mb-4">
-                     <svg className="w-6 h-6 fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                    </div>
                    <p className="text-xs font-black uppercase tracking-widest">Awaiting academic prompt...</p>
                  </div>

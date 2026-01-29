@@ -17,6 +17,9 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 
+const STRIPE_MONTHLY_LINK = "https://buy.stripe.com/test_6oU3cv2bad6b5rS7DM3cc02";
+const STRIPE_YEARLY_LINK  = "https://buy.stripe.com/test_4gMbJ1dTS9TZ8E40bk3cc03";
+
 /** ---------- Utils ---------- */
 const hashString = (str: string) => {
   let hash = 0;
@@ -1440,11 +1443,9 @@ const AppInner: React.FC = () => {
                     <li>• Unlimited StuddiChat interactions</li>
                     <li>• Full AI Synthesis access</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => {
-                    const link = getEnv('VITE_STRIPE_MONTHLY_LINK');
-                    if (!link) { alert("Monthly Stripe link not configured."); return; }
-                    window.location.href = link;
-                  }}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE MONTHLY'}</Button>
+                  <Button className="w-full h-12" onClick={() => window.location.href = STRIPE_MONTHLY_LINK}>
+                    {user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE MONTHLY'}
+                  </Button>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-6 md:p-8 space-y-6 md:space-y-8 shadow-xl md:scale-105 flex flex-col relative overflow-hidden">
@@ -1459,11 +1460,9 @@ const AppInner: React.FC = () => {
                     <li>• $79.99 billed annually</li>
                     <li>• Best Value plan</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => {
-                    const link = getEnv('VITE_STRIPE_YEARLY_LINK');
-                    if (!link) { alert("Yearly Stripe link not configured."); return; }
-                    window.location.href = link;
-                  }}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE YEARLY'}</Button>
+                  <Button className="w-full h-12" onClick={() => window.location.href = STRIPE_YEARLY_LINK}>
+                    {user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE YEARLY'}
+                  </Button>
                 </div>
               </div>
 

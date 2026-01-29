@@ -115,7 +115,7 @@ export const generateStudySet = async (input: GenerationInput): Promise<StudySet
         systemInstruction,
         responseMimeType: "application/json",
         temperature: input.isDifferentSet ? 0.7 : 0.1,
-        thinkingConfig: { thinkingBudget: 0 },
+        // Removed thinkingBudget: 0 because gemini-3-pro-preview requires a positive budget or default mode
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -250,7 +250,7 @@ export const fetchTutorInsights = async (question: string, answer: string): Prom
       config: {
         systemInstruction,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 }, 
+        // Removed thinkingBudget: 0 because gemini-3-pro-preview requires a positive budget or default mode
         responseSchema: {
           type: Type.OBJECT,
           properties: {

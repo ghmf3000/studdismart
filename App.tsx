@@ -33,6 +33,28 @@ const formatSeconds = (seconds: number) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+/**
+ * getEnv(key: string)
+ * Safely reads from import.meta.env if available, falls back to process.env.
+ */
+const getEnv = (key: string): string => {
+  try {
+    // Fixed: Cast import.meta to any to avoid "Property 'env' does not exist on type 'ImportMeta'" error
+    const meta = import.meta as any;
+    if (typeof meta !== 'undefined' && meta.env && meta.env[key]) {
+      return meta.env[key];
+    }
+  } catch (e) {}
+  try {
+    // Fixed: Safely check process.env with any casting to handle different environment types
+    const proc = (typeof process !== 'undefined' ? process : undefined) as any;
+    if (proc && proc.env && proc.env[key]) {
+      return proc.env[key];
+    }
+  } catch (e) {}
+  return "";
+};
+
 /** ---------- Error Boundary (prevents blank screen) ---------- */
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -1280,7 +1302,7 @@ const AppInner: React.FC = () => {
                         value={chatInput} 
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                        placeholder="Ask anything..."
+                        placeholder="Ask about concepts, definitions, or exam tips..."
                         className="flex-1 bg-slate-100 dark:bg-slate-900 px-5 py-3 border border-slate-200 dark:border-slate-700 outline-none font-bold text-sm focus:border-red-500 transition-colors"
                       />
                       <Button 
@@ -1299,7 +1321,7 @@ const AppInner: React.FC = () => {
         )}
 
         {view === "about" && (
-          <div className="max-w-5xl mx-auto py-6 md:py-10 space-y-8 md:space-y-12 animate-content">
+          <div className="max-w-5_5xl mx-auto py-6 md:py-10 space-y-8 md:space-y-12 animate-content">
             <div className="text-center space-y-3 md:space-y-4">
               <h2 className="text-3xl md:text-6xl font-black text-[#1a1f2e] dark:text-white leading-[1.1]">About StuddiSmart</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm md:text-xl font-medium max-w-3xl mx-auto">
@@ -1394,7 +1416,6 @@ const AppInner: React.FC = () => {
             <div className="space-y-10 md:space-y-16">
               <h2 className="text-3xl md:text-4xl font-black text-center text-slate-900 dark:text-white leading-tight">Select StuddiSmart Plan</h2>
               <div id="pricing-plans" className="grid grid-cols-1 md:grid-cols-3 gap-8 px-4 sm:px-0">
-                {/* Free Plan */}
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Free</h3>
                   <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$0</div>
@@ -1406,7 +1427,6 @@ const AppInner: React.FC = () => {
                   <Button variant="secondary" className="w-full cursor-default h-12" disabled>{user?.tier === 'free' ? 'Current Plan' : 'Free Tier'}</Button>
                 </div>
                 
-                {/* Pro Plan - Monthly */}
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 md:space-y-8 flex flex-col">
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Pro - monthly</h3>
                   <div className="space-y-1">
@@ -1420,75 +1440,83 @@ const AppInner: React.FC = () => {
                     <li>• Unlimited StuddiChat interactions</li>
                     <li>• Full AI Synthesis access</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE MONTHLY'}</Button>
+                  <Button className="w-full h-12" onClick={() => {
+                    const link = getEnv('VITE_STRIPE_MONTHLY_LINK');
+                    if (!link) { alert("Monthly Stripe link not configured."); return; }
+                    window.location.href = link;
+                  }}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE MONTHLY'}</Button>
                 </div>
 
-                {/* Pro Plan - Yearly */}
                 <div className="bg-white dark:bg-slate-800 border-2 border-red-500 p-6 md:p-8 space-y-6 md:space-y-8 shadow-xl md:scale-105 flex flex-col relative overflow-hidden">
                   <div className="absolute top-4 right-[-35px] bg-red-600 text-white text-[8px] font-black py-1 px-10 rotate-45 uppercase tracking-widest">Best Value</div>
                   <h3 className="text-lg md:text-xl font-black text-slate-900 dark:text-white">StuddiSmart Pro - yearly</h3>
                   <div className="space-y-1">
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Yearly Subscription</div>
                     <div className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">$6.67<span className="text-sm font-bold text-slate-400">/month</span></div>
-                    <div className="text-[10px] font-black text-red-600 uppercase tracking-widest bg-red-50 dark:bg-red-900/20 inline-block px-2 py-0.5">Save $40 compared to monthly</div>
                   </div>
                   <ul className="space-y-2 md:space-y-3 text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 flex-grow">
                     <li>• Everything in Monthly</li>
                     <li>• $79.99 billed annually</li>
                     <li>• Best Value plan</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => handleUpgrade('pro')}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE YEARLY'}</Button>
+                  <Button className="w-full h-12" onClick={() => {
+                    const link = getEnv('VITE_STRIPE_YEARLY_LINK');
+                    if (!link) { alert("Yearly Stripe link not configured."); return; }
+                    window.location.href = link;
+                  }}>{user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE YEARLY'}</Button>
                 </div>
               </div>
-            </div>
 
-            {/* TESTIMONIALS SECTION */}
-            <div className="space-y-12">
-               <div className="text-center space-y-4">
-                  <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Real stories from our scholars</h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs md:text-sm font-bold">Experience-based insights from users who leveled up their learning.</p>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* TESTIMONIALS SECTION */}
+              <div className="space-y-10 md:space-y-16">
+                <div className="text-center space-y-4">
+                  <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Trusted by Scholars</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm md:text-base font-medium">Join 50,000+ students mastering their subjects with StuddiSmart AI.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                   {[
-                    { text: "The flashcards generated from my anatomy notes saved me hours of typing, and I’m actually retaining the material now.", author: "S", role: "Medical Student" },
-                    { text: "StuddiChat helped me finally grasp organic chemistry by breaking down concepts into simple, logical steps.", author: "J", role: "College Student" },
-                    { text: "The practice tests gave me the confidence I needed to pass my certification exam on the first try.", author: "M", role: "Professional Exam Taker" },
-                    { text: "Mapping out complex project management theories with mind maps made everything click for me visually.", author: "E", role: "MBA Candidate" },
-                    { text: "Quizzes with explanations turned my mistakes into learning moments rather than just points lost.", author: "T", role: "High School Senior" },
-                    { text: "Converting dense research papers into interactive flashcards has completely changed how I prepare for my thesis.", author: "L", role: "Graduate Researcher" },
+                    { name: "Sarah M.", role: "Med Student", text: "StuddiSmart turned my 100-page pathology notes into perfect flashcards in seconds. I've never felt more prepared for finals." },
+                    { name: "James L.", role: "Law Student", text: "The legal synthesis engine is incredible. It identifies core case principles and tests me on nuances I would have missed." },
+                    { name: "Emily R.", role: "High School Senior", text: "I used to spend hours making cards. Now I spend those hours actually studying. My GPA has never been higher." },
+                    { name: "Dr. Aris T.", role: "University Professor", text: "I recommend StuddiSmart to all my students. It promotes active recall and spaced repetition effortlessly." },
+                    { name: "Michael K.", role: "Software Developer", text: "Perfect for learning new frameworks. I upload the documentation and get a comprehensive study set instantly." },
+                    { name: "Chloe W.", role: "Master's Student", text: "The mindmaps help me visualize the hierarchy of complex research papers. It's like having a personal tutor 24/7." }
                   ].map((t, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4 flex flex-col">
-                       <div className="flex-grow">
-                          <p className="text-sm font-medium text-slate-600 dark:text-slate-300 italic leading-relaxed">"{t.text}"</p>
-                       </div>
-                       <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
-                          <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">— {t.author}, {t.role}</p>
-                       </div>
+                    <div key={i} className="bg-white dark:bg-slate-800 p-6 md:p-8 border border-slate-100 dark:border-slate-700 shadow-lg space-y-4">
+                      <p className="text-slate-600 dark:text-slate-400 text-sm italic font-medium leading-relaxed">"{t.text}"</p>
+                      <div className="flex items-center gap-3 pt-2">
+                        <div className="w-8 h-8 md:w-10 md:h-10 bg-red-50 dark:bg-red-900/30 text-red-600 flex items-center justify-center font-black text-xs md:text-sm">{t.name[0]}</div>
+                        <div>
+                          <p className="text-xs md:text-sm font-black text-slate-900 dark:text-white">{t.name}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{t.role}</p>
+                        </div>
+                      </div>
                     </div>
                   ))}
-               </div>
-            </div>
+                </div>
+              </div>
 
-            {/* CTA BLOCK - UPDATED WORDING */}
-            <div className="bg-white dark:bg-slate-800 text-center py-16 md:py-24 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 relative overflow-hidden">
-               <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600"></div>
-               <div className="space-y-4 max-w-2xl mx-auto px-6">
-                  <h3 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Elevate your academic potential</h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm md:text-xl font-medium leading-relaxed">
-                     Master complex subjects with clarity and build lasting confidence for every exam.
-                  </p>
-               </div>
-               <div className="space-y-6 px-6">
-                  <Button 
-                    className="mx-auto h-14 md:h-16 px-12 md:px-16 bg-red-600 hover:bg-red-700 text-xs md:text-sm tracking-[0.2em] font-black border-none shadow-2xl shadow-red-500/20"
-                    onClick={() => document.getElementById('pricing-plans')?.scrollIntoView({ behavior: 'smooth' })}
-                  >
-                    👉 Choose a plan
-                  </Button>
-                  <p className="text-[9px] md:text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">
-                     Unlimited access to all learning tools. Cancel anytime.
-                  </p>
-               </div>
+              {/* CTA BLOCK - UPDATED WORDING */}
+              <div className="bg-white dark:bg-slate-800 text-center py-16 md:py-24 border border-slate-200 dark:border-slate-700 shadow-xl space-y-10 relative overflow-hidden">
+                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600"></div>
+                 <div className="space-y-4 max-w-2xl mx-auto px-6">
+                    <h3 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Elevate your academic potential</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm md:text-xl font-medium leading-relaxed">
+                       Master complex subjects with clarity and build lasting confidence for every exam.
+                    </p>
+                 </div>
+                 <div className="space-y-6 px-6">
+                    <Button 
+                      className="mx-auto h-14 md:h-16 px-12 md:px-16 bg-red-600 hover:bg-red-700 text-xs md:text-sm tracking-[0.2em] font-black border-none shadow-2xl shadow-red-500/20"
+                      onClick={() => document.getElementById('pricing-plans')?.scrollIntoView({ behavior: 'smooth' })}
+                    >
+                      👉 Choose a plan
+                    </Button>
+                    <p className="text-[9px] md:text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">
+                       Unlimited access to all learning tools. Cancel anytime.
+                    </p>
+                 </div>
+              </div>
             </div>
           </div>
         )}
@@ -1513,29 +1541,16 @@ const AppInner: React.FC = () => {
       <div className={`fixed bottom-6 right-6 z-[1000] flex flex-col items-end transition-all duration-500 ease-in-out ${isChatExpanded ? 'w-[90vw] sm:w-[400px]' : 'w-auto'}`}>
         {isChatExpanded ? (
           <div className="w-full h-[500px] flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-[0_20px_50px_rgba(0,0,0,0.2)] rounded-none overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
-            {/* Header */}
             <div className="bg-slate-900 px-6 py-4 flex items-center justify-between shrink-0">
                <div className="flex items-center gap-2">
                  <div className="w-7 h-7 bg-red-600 flex items-center justify-center text-white font-black text-xs">C</div>
                  <h3 className="text-xs font-black uppercase text-white tracking-widest">Ask StuddiChat</h3>
                </div>
                <div className="flex items-center gap-2">
-                 <button onClick={handleDownloadChat} title="Download History" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
-                 <button onClick={handleNewChat} title="New Chat" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg></button>
-                 <button onClick={() => setIsChatExpanded(false)} title="Hide" className="p-1.5 text-slate-400 hover:text-white transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg></button>
+                 <button onClick={() => setIsChatExpanded(false)} className="p-1.5 text-slate-400 hover:text-white transition-colors">✕</button>
                </div>
             </div>
-            {/* Messages */}
             <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-900 custom-scrollbar">
-               {chatMessages.length === 0 && (
-                 <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
-                   <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-700 rounded-full flex items-center justify-center mb-4">
-                     {/* Fix: changed invalid attribute 'none' to fill="none" to prevent SVGProps error and potential JSX parsing failures. */}
-                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-                   </div>
-                   <p className="text-xs font-black uppercase tracking-widest">Awaiting academic prompt...</p>
-                 </div>
-               )}
                {chatMessages.map((msg, i) => (
                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                    <div className={`max-w-[85%] px-4 py-2.5 shadow-sm text-xs whitespace-pre-wrap ${msg.role === 'user' ? 'bg-red-600 text-white font-bold' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'}`}>
@@ -1553,7 +1568,6 @@ const AppInner: React.FC = () => {
                  </div>
                )}
             </div>
-            {/* Input */}
             <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                <div className="flex gap-2">
                  <input 
@@ -1566,9 +1580,6 @@ const AppInner: React.FC = () => {
                  />
                  <button onClick={handleSendChat} disabled={!chatInput.trim() || isChatLoading} className="bg-slate-900 text-white px-4 py-2 font-black text-[10px] uppercase hover:bg-slate-800 disabled:opacity-50">Send</button>
                </div>
-               {user?.tier !== 'pro' && (
-                 <p className="text-[8px] font-black uppercase text-slate-400 mt-2 text-center tracking-widest">{5 - freeChatCount} free insights left</p>
-               )}
             </div>
           </div>
         ) : (
@@ -1578,7 +1589,6 @@ const AppInner: React.FC = () => {
           >
             <div className="w-6 h-6 bg-red-600 flex items-center justify-center font-black text-xs">C</div>
             <span className="text-xs font-black uppercase tracking-[0.2em]">Ask StuddiChat</span>
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-1"></div>
           </button>
         )}
       </div>

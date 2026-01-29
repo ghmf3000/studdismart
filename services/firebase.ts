@@ -1,7 +1,6 @@
-
 // services/firebase.ts
 // Standard modular imports for Firebase v9+
-import { initializeApp, getApps, getApp } from "firebase/app";
+import * as FirebaseApp from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
@@ -12,6 +11,9 @@ const firebaseConfig = {
   messagingSenderId: "1094903850038",
   appId: "1:1094903850038:web:REPLACE_WITH_YOUR_REAL_WEB_APP_ID",
 };
+
+// Fix: Use namespace-based access to Firebase functions (initializeApp, getApps, getApp) to resolve module resolution errors in some environments
+const { initializeApp, getApps, getApp } = FirebaseApp as any;
 
 // ✅ Initialize exactly once using direct modular function calls to fix "Property '...' does not exist" errors
 export const app = getApps().length 

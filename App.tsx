@@ -249,7 +249,7 @@ const AppInner: React.FC = () => {
   const [quizIndex, setQuizIndex] = useState(0);
   const [testIndex, setTestIndex] = useState(0);
 
-  const [view, setView] = useState<"home" | "viewer" | "profile" | "pricing" | "about" | "success">("home");
+  const [view, setView] = useState<"home" | "viewer" | "profile" | "pricing" | "about" | "success" | "cancel">("home");
   const [selectedDoc, setSelectedDoc] = useState<SelectedDoc | null>(null);
 
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
@@ -371,23 +371,10 @@ const AppInner: React.FC = () => {
   useEffect(() => {
     if (window.location.pathname === '/success') {
       setView('success');
+    } else if (window.location.pathname === '/cancel') {
+      setView('cancel');
     }
   }, []);
-
-  useEffect(() => {
-    if (view === 'success') {
-      const params = new URLSearchParams(window.location.search);
-      const sessionId = params.get('session_id');
-      if (!sessionId) {
-        window.location.href = '/pricing';
-        return;
-      }
-      const timer = setTimeout(() => {
-        window.location.href = '/signup?paid=true';
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [view]);
 
   const toggleDarkMode = () => setIsDarkMode((v) => !v);
 
@@ -1345,9 +1332,28 @@ const AppInner: React.FC = () => {
         )}
 
         {view === "success" && (
-          <div className="max-w-2xl mx-auto py-20 text-center space-y-4">
-            <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">Verifying your payment...</h2>
-            <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full mx-auto"></div>
+          <div className="max-w-2xl mx-auto py-20 text-center space-y-8 animate-content">
+            <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">Payment successful</h2>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Your account has been upgraded to StuddiSmart Pro.</p>
+            </div>
+            <Button onClick={() => setView("home")} className="mx-auto h-14 px-10">Continue to Dashboard</Button>
+          </div>
+        )}
+
+        {view === "cancel" && (
+          <div className="max-w-2xl mx-auto py-20 text-center space-y-8 animate-content">
+            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white">Payment canceled</h2>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">The payment process was not completed. No charges were made.</p>
+            </div>
+            <Button variant="secondary" onClick={() => setView("pricing")} className="mx-auto h-14 px-10">Back to Pricing</Button>
           </div>
         )}
 

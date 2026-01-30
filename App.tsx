@@ -249,7 +249,7 @@ const AppInner: React.FC = () => {
   const [quizIndex, setQuizIndex] = useState(0);
   const [testIndex, setTestIndex] = useState(0);
 
-  const [view, setView] = useState<"home" | "viewer" | "profile" | "pricing" | "about">("home");
+  const [view, setView] = useState<"home" | "viewer" | "profile" | "pricing" | "about" | "success">("home");
   const [selectedDoc, setSelectedDoc] = useState<SelectedDoc | null>(null);
 
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
@@ -367,6 +367,27 @@ const AppInner: React.FC = () => {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [chatMessages, isChatLoading, isChatExpanded]);
+
+  useEffect(() => {
+    if (window.location.pathname === '/success') {
+      setView('success');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'success') {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id');
+      if (!sessionId) {
+        window.location.href = '/pricing';
+        return;
+      }
+      const timer = setTimeout(() => {
+        window.location.href = '/signup?paid=true';
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [view]);
 
   const toggleDarkMode = () => setIsDarkMode((v) => !v);
 
@@ -984,7 +1005,7 @@ const AppInner: React.FC = () => {
               {activeTab === "quiz" && (
                 <div className="max-w-2xl mx-auto">
                   {isQuizSubmitted ? (
-                    <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="space-y-6 md:space-y-8 animate-content">
                       <div className="bg-white dark:bg-slate-800 p-6 md:p-12 border border-slate-200 dark:border-slate-700 shadow-xl border-t-8 border-t-red-600 space-y-8 md:space-y-10">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8 pb-6 md:pb-10 border-b border-slate-100 dark:border-slate-700">
                           <div className="text-center md:text-left space-y-2">
@@ -1111,7 +1132,7 @@ const AppInner: React.FC = () => {
               {activeTab === "test" && (
                 <div className="max-w-2xl mx-auto">
                   {isTestSubmitted ? (
-                    <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="space-y-6 md:space-y-8 animate-content">
                       <div className="bg-slate-900 p-8 md:p-14 border-t-8 border-emerald-500 text-white space-y-10 shadow-2xl relative overflow-hidden rounded-none">
                         <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
                           <svg className="w-40 h-40" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
@@ -1320,6 +1341,13 @@ const AppInner: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {view === "success" && (
+          <div className="max-w-2xl mx-auto py-20 text-center space-y-4">
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">Verifying your payment...</h2>
+            <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full mx-auto"></div>
           </div>
         )}
 

@@ -261,6 +261,9 @@ const AppInner: React.FC = () => {
   const [testDuration, setTestDuration] = useState<number>(0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
 
+  // Added pendingPlan state to handle subscription after auth
+  const [pendingPlan, setPendingPlan] = useState<"monthly" | "yearly" | null>(null);
+
   // StuddiChat Global State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -329,9 +332,16 @@ const AppInner: React.FC = () => {
       setUser(newUser);
       setProfileNameInput(newUser.name);
       setShowAuthModal(false);
+
+      // Handle pending subscription after successful authentication
+      if (pendingPlan) {
+        const link = pendingPlan === 'monthly' ? STRIPE_MONTHLY_LINK : STRIPE_YEARLY_LINK;
+        setPendingPlan(null);
+        window.location.href = link;
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [pendingPlan]); // Added pendingPlan dependency to re-run observer when plan is set
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -841,7 +851,7 @@ const AppInner: React.FC = () => {
           <div className="md:hidden absolute top-full left-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-top-4 duration-300">
              <div className="flex flex-col p-6 space-y-4">
                 <button onClick={() => { setView("home"); setIsMobileMenuOpen(false); }} className={`text-left text-xs font-black uppercase tracking-widest ${view === 'home' ? 'text-red-500' : 'text-slate-600 dark:text-slate-400'}`}>Home</button>
-                <button onClick={() => { setView("about"); setIsMobileMenuOpen(false); }} className={`text-left text-xs font-black uppercase tracking-widest ${view === 'about' ? 'text-red-500' : 'text-slate-600 dark:text-slate-400'}`}>About</button>
+                <button onClick={() => { setView("about"); setIsMobileMenuOpen(false); }} className={`text-left text-xs font-black uppercase tracking-widest ${view === 'about' ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>About</button>
                 <button onClick={() => { setView("pricing"); setIsMobileMenuOpen(false); }} className={`text-left text-xs font-black uppercase tracking-widest ${view === 'pricing' ? 'text-red-500' : 'text-slate-600 dark:text-slate-400'}`}>Pricing</button>
                 {cards.length > 0 && (
                   <button onClick={() => { setView("viewer"); setIsMobileMenuOpen(false); }} className="text-left text-xs font-black uppercase tracking-widest text-red-500 border-t border-slate-100 dark:border-slate-800 pt-4">Current Workspace</button>
@@ -1477,7 +1487,14 @@ const AppInner: React.FC = () => {
                     <li>• Unlimited StuddiChat interactions</li>
                     <li>• Full AI Synthesis access</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => window.location.href = STRIPE_MONTHLY_LINK}>
+                  <Button className="w-full h-12" onClick={() => {
+                    if (user) window.location.href = STRIPE_MONTHLY_LINK;
+                    else {
+                      setPendingPlan("monthly");
+                      setAuthMode("signup");
+                      setShowAuthModal(true);
+                    }
+                  }}>
                     {user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE MONTHLY'}
                   </Button>
                 </div>
@@ -1494,7 +1511,14 @@ const AppInner: React.FC = () => {
                     <li>• $79.99 billed annually</li>
                     <li>• Best Value plan</li>
                   </ul>
-                  <Button className="w-full h-12" onClick={() => window.location.href = STRIPE_YEARLY_LINK}>
+                  <Button className="w-full h-12" onClick={() => {
+                    if (user) window.location.href = STRIPE_YEARLY_LINK;
+                    else {
+                      setPendingPlan("yearly");
+                      setAuthMode("signup");
+                      setShowAuthModal(true);
+                    }
+                  }}>
                     {user?.tier === 'pro' ? 'Current Active Pro' : 'CHOOSE YEARLY'}
                   </Button>
                 </div>
